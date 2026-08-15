@@ -1,0 +1,17 @@
+# ⚠️ 절대 커밋되면 안 되는 것들
+config.py
+.env
+*.key
+*.pem
+
+# 캐시·로그·임시파일
+.cache/
+__pycache__/
+*.pyc
+*.log
+_debug_*.html
+_probe_*.json
+themes_naver.json
+
+# Vercel 로컬 설정 (프로젝트 ID는 Secrets 로 전달)
+web/.vercel/

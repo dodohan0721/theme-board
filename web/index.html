@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>테마보드 — 국내주식 테마 대시보드</title>
+<meta name="description" content="거래대금 상위 종목을 테마별로 묶어 보여주고, 상승 사유 뉴스와 재무를 함께 확인하는 대시보드">
+<style>
+:root{
+  --teal:#05b1b8; --teal-d:#049aa0; --teal-l:#cdeef0;
+  --appbar:#dce5e6; --page:#e6edee;
+  --up:#e8322a; --up-bg:#fff687; --up-soft:#fff9c4; --down:#1565d8;
+  --gauge-track:#ded9a0;
+  --ink:#1a1d21; --ink2:#4a5560; --ink3:#7c8794;
+  --line:#dfe4e8; --line2:#eef1f3; --band:#f0f1f4;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);
+ font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",Pretendard,system-ui,sans-serif;font-size:14px;line-height:1.5}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--up)}.dn{color:var(--down)}.flat{color:var(--ink3)}
+.appbar{position:sticky;top:0;z-index:60;background:var(--appbar);border-bottom:1px solid #cfdadb}
+.appbar .in{max-width:1500px;margin:0 auto;padding:10px 16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.logo{font-size:22px;font-weight:900;color:var(--teal);letter-spacing:-1px}
+.logo small{display:block;font-size:9px;font-weight:700;color:var(--ink3);margin-top:-3px}
+.gnb{display:flex;gap:2px;flex:1}
+.gnb button{padding:7px 14px;border-radius:8px;font-size:14px;font-weight:700;color:var(--ink2)}
+.gnb button.on{background:var(--teal);color:#fff}
+.stat{font-size:11.5px;color:var(--ink3);display:flex;align-items:center;gap:6px}
+.dot{width:7px;height:7px;border-radius:50%;background:#22c55e;animation:p 1.6s infinite}
+.dot.err{background:#e8322a;animation:none}
+@keyframes p{0%,100%{opacity:1}50%{opacity:.25}}
+.wrap{max-width:1500px;margin:0 auto;padding:14px 16px 80px}
+.bar{display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.seg{display:flex;background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.seg button{padding:7px 14px;font-size:13px;font-weight:700;color:var(--ink2);border-right:1px solid var(--line2)}
+.seg button:last-child{border-right:none}
+.seg button.on{background:var(--teal);color:#fff}
+.note{background:#fff;border:1px dashed #c6ccd2;border-radius:12px;padding:11px 14px;font-size:12.5px;color:var(--ink2);margin-bottom:13px;line-height:1.7}
+.note b{color:var(--ink)}
+.err{background:#fff1f0;border:1px solid #fbc5c0;color:#b42318;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.8;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(20,30,40,.05)}
+.card:hover{box-shadow:0 6px 18px rgba(20,30,40,.11)}
+.chead{display:flex;gap:8px;padding:9px 10px 8px}
+.cpill{background:var(--teal);color:#fff;font-weight:800;font-size:15px;padding:7px 13px;border-radius:9px;flex:1;cursor:pointer;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpct{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 11px;font-weight:900;font-size:19px;display:flex;align-items:center;min-width:88px;justify-content:flex-end}
+.cmeta{display:flex;gap:10px;padding:0 12px 8px;font-size:11.5px;color:var(--ink3);flex-wrap:wrap}
+.cmeta b{color:var(--ink2)}
+.chl{background:var(--band);margin:0 10px 8px;padding:8px 11px;border-radius:8px;font-size:12.6px;color:var(--ink2);cursor:pointer;
+ display:flex;gap:6px}
+.chl span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rows{padding:0 8px 6px;flex:1}
+.row{padding:7px 9px 9px;border-radius:9px;margin-bottom:4px;cursor:pointer;position:relative}
+.row.hot{background:var(--up-bg)}.row.warm{background:var(--up-soft)}
+.row:hover{outline:2px solid var(--teal);outline-offset:-2px}
+.row .r1{display:flex;justify-content:space-between;gap:8px}
+.row .nm{font-weight:800;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .pc{font-weight:900;font-size:14.5px;white-space:nowrap}
+.row .r2{display:flex;justify-content:space-between;font-size:12.4px;margin-top:1px}
+.row .vl{color:var(--ink2);font-size:11.5px}
+.gauge{height:9px;background:var(--gauge-track);border-radius:5px;margin-top:5px;position:relative;overflow:hidden}
+.gauge i{position:absolute;left:50%;top:0;bottom:0;background:var(--up);border-radius:5px}
+.gauge i.d{background:var(--down)}
+.gauge u{position:absolute;left:50%;top:-2px;bottom:-2px;width:2px;background:#333;opacity:.5}
+.cmore{padding:9px;font-size:12.5px;font-weight:700;color:var(--teal-d);border-top:1px solid var(--line2);width:100%}
+.cmore:hover{background:var(--teal-l)}
+.panel{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.ts{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:860px}
+th,td{padding:9px 11px;border-bottom:1px solid var(--line2);font-size:13px;white-space:nowrap}
+th{background:#f7f9f9;font-size:12px;font-weight:700;color:var(--ink2);text-align:left;position:sticky;top:0}
+th.r,td.r{text-align:right;font-variant-numeric:tabular-nums}
+tbody tr{cursor:pointer}tbody tr:hover{background:var(--teal-l)}
+.chip{display:inline-block;background:var(--teal-l);color:var(--teal-d);font-size:11px;font-weight:800;padding:2px 7px;border-radius:5px;margin-right:3px;cursor:pointer}
+.chip.g{background:var(--band);color:var(--ink3)}
+.badge{display:inline-block;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:4px}
+.badge.hi{background:#fee2e0;color:var(--up)}.badge.warn{background:#fef3c7;color:#92400e}
+.detail{position:fixed;inset:0;z-index:90;display:none}.detail.on{display:block}
+.detail .bg{position:absolute;inset:0;background:rgba(15,25,30,.42)}
+.detail .sheet{position:absolute;right:0;top:0;bottom:0;width:min(780px,100%);background:var(--page);overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.2)}
+.dhead{position:sticky;top:0;background:var(--appbar);border-bottom:1px solid #cfdadb;padding:13px 18px;z-index:5}
+.dhead .x{position:absolute;right:12px;top:11px;font-size:20px;color:var(--ink3);padding:4px 9px;border-radius:8px}
+.dbody{padding:14px 18px 60px}
+.blk{background:#fff;border:1px solid var(--line);border-radius:13px;padding:14px 15px;margin-bottom:11px}
+.blk h4{margin:0 0 9px;font-size:14px;font-weight:800}
+.blk p{margin:0 0 8px;font-size:13.3px;color:var(--ink2);line-height:1.65}
+.ev{display:flex;gap:11px;padding:9px 0;border-bottom:1px dashed var(--line)}
+.ev:last-child{border-bottom:none}
+.ev .n{width:19px;height:19px;border-radius:50%;background:var(--teal);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none;margin-top:2px}
+.ev .t{font-size:13px;line-height:1.6}
+.ev .m{font-size:11.5px;color:var(--ink3);margin-top:2px}
+.ev a{color:var(--teal-d);font-weight:700;text-decoration:none;font-size:11.5px}
+.fin{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:7px}
+.fin .f{background:#f8fafa;border:1px solid var(--line2);border-radius:9px;padding:9px;text-align:center}
+.fin .f .l{font-size:10.5px;color:var(--ink3);font-weight:700}
+.fin .f .v{font-size:16px;font-weight:900;margin:2px 0}
+.fin .f .c{font-size:10px;color:var(--ink3)}
+.disc{font-size:11.4px;color:var(--ink3);background:#fffbea;border:1px solid #f5e6b8;border-radius:8px;padding:8px 10px;margin-top:8px;line-height:1.6}
+.foot{max-width:1500px;margin:20px auto 0;padding:16px;font-size:11.6px;color:var(--ink3);border-top:1px solid var(--line);line-height:1.75}
+.load{text-align:center;padding:60px 20px;color:var(--ink3);font-size:14px}
+@media(max-width:900px){.cards{grid-template-columns:1fr}.gnb{order:3;width:100%}}
+
+.stale{background:#fffbea;border:1px solid #f5e6b8;color:#8a6d1f;border-radius:10px;padding:9px 13px;font-size:12.5px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="appbar"><div class="in">
+  <div class="logo">테마보드<small>KIS + DART + NAVER</small></div>
+  <nav class="gnb">
+    <button class="on" data-k="home" onclick="go('home')">마켓</button>
+    <button data-k="rank" onclick="go('rank')">랭킹</button>
+    <a href="guide.html" style="padding:7px 14px;border-radius:8px;font-size:14px;font-weight:700;color:var(--teal-d);text-decoration:none;border:1px solid var(--teal);margin-left:4px">📖 화면 보는 법</a>
+  </nav>
+  <div class="stat"><span class="dot" id="dot"></span><span id="stat">불러오는 중…</span></div>
+</div></div>
+<div class="wrap" id="view"><div class="load">데이터를 불러오는 중입니다…</div></div>
+<div class="foot">
+  데이터 출처: 한국투자증권 OpenAPI · 금융감독원 DART · 네이버 뉴스 검색 API.
+  화면의 수치는 <b id="snapts">스냅샷</b> 기준이며 실시간이 아닙니다.<br>
+  본 화면의 정보는 투자 참고용이며 투자 권유나 종목 추천이 아닙니다. 투자 결과에 대한 책임은 투자자 본인에게 있습니다.
+</div>
+<div class="detail" id="dt"><div class="bg" onclick="closeDt()"></div><div class="sheet" id="sheet"></div></div>
+
+<script>
+const $=id=>document.getElementById(id);
+const nf=n=>(n==null?'-':Number(n).toLocaleString('ko-KR'));
+const pct=r=>(r>0?'+':'')+Number(r).toFixed(2)+'%';
+const cls=r=>r>0?'up':(r<0?'dn':'flat');
+const arw=r=>r>0?'▲':(r<0?'▼':'-');
+const vfmt=v=>v==null?'-':(v>=10000?(v/10000).toFixed(1).replace(/\.0$/,'')+'조':nf(v)+'억');
+let RAW=null, D=null, cur='home', sortKey='value', minv=300;
+
+function applyFilter(){
+  const keep=RAW.themes.filter(t=>t.value>=minv);
+  const codes=new Set(); keep.forEach(t=>t.codes.forEach(c=>codes.add(c)));
+  D={...RAW, themes:keep, hidden:RAW.themes.length-keep.length,
+     ranking:RAW.ranking.filter(c=>codes.has(c))};
+}
+async function load(){
+  try{
+    const r=await fetch('data.json?t='+Date.now());
+    RAW=await r.json(); applyFilter();
+    const age=(Date.now()-new Date(RAW.ts.replace(' ','T')+'+09:00').getTime())/60000;
+    $('dot').className='dot'+(age>90?' err':'');
+    $('stat').textContent=`${RAW.ts} 기준 · 테마 ${RAW.themes.length} · 종목 ${RAW.scanned}`;
+    $('snapts').textContent=RAW.ts;
+    render();
+  }catch(e){
+    $('dot').className='dot err'; $('stat').textContent='로딩 실패';
+    $('view').innerHTML=`<div class="err">data.json 을 불러오지 못했습니다.\n\n${e.message}</div>`;
+  }
+}
+function go(k){cur=k;document.querySelectorAll('[data-k]').forEach(b=>b.classList.toggle('on',b.dataset.k===k));render();}
+function render(){ if(!D)return; cur==='home'?viewHome():viewRank(); }
+
+function viewHome(){
+  let ts=[...D.themes];
+  if(sortKey==='pct')ts.sort((a,b)=>b.pct-a.pct);
+  if(sortKey==='ratio')ts.sort((a,b)=>(b.up/b.n)-(a.up/a.n));
+  const age=Math.round((Date.now()-new Date(D.ts.replace(' ','T')+'+09:00').getTime())/60000);
+  $('view').innerHTML=`
+  ${age>20?`<div class="stale">⏱ 이 화면은 <b>${D.ts}</b> 기준 스냅샷입니다 (약 ${age}분 전). 실시간 시세가 아닙니다.</div>`:''}
+  <div class="note">사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.
+  테마 <b>${D.theme_total}개</b> 중 조건을 넘긴 <b>${D.themes.length}개</b>만 표시합니다${D.hidden?` (거래대금 ${minv}억 미만 ${D.hidden}개 숨김)`:''}.</div>
+  <div class="bar"><div class="seg">
+    ${[['value','거래대금순'],['pct','등락률순'],['ratio','상승비율순']].map(([k,l])=>
+      `<button class="${sortKey===k?'on':''}" onclick="sortKey='${k}';viewHome()">${l}</button>`).join('')}
+  </div>
+  <select style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--ink2);border:1px solid var(--line);border-radius:9px;background:#fff"
+    onchange="minv=+this.value;applyFilter();viewHome()">
+    ${[[0,'테마 거래대금 전체'],[100,'100억 이상'],[300,'300억 이상'],[500,'500억 이상'],[1000,'1,000억 이상'],[3000,'3,000억 이상']]
+      .map(([v,l])=>`<option value="${v}" ${minv===v?'selected':''}>${l}</option>`).join('')}
+  </select></div>
+  <div class="cards">${ts.map(cardHTML).join('')||'<div class="load">조건에 맞는 테마가 없습니다.</div>'}</div>`;
+}
+function cardHTML(t){
+  const codes=t.codes.slice(0,5);
+  const maxV=Math.max(...t.codes.map(c=>D.stocks[c].value),1);
+  return `<div class="card">
+    <div class="chead"><div class="cpill" onclick="openTheme('${t.id}')">${t.name}</div>
+      <div class="cpct ${cls(t.pct)} num">${pct(t.pct)}</div></div>
+    <div class="cmeta"><span>거래대금 <b>${vfmt(t.value)}</b></span>
+      <span>상승 <b>${t.up}/${t.n}</b></span><span class="chip g">${t.cat}</span>
+      ${Math.abs(t.pct-t.pct_eq)>1.5?`<span>동일가중 ${pct(t.pct_eq)}</span>`:''}</div>
+    <div class="rows">${codes.map(c=>rowHTML(c,maxV)).join('')}</div>
+    <button class="cmore" onclick="openTheme('${t.id}')">이 테마 종목 ${t.n}개 전체보기 →</button></div>`;
+}
+function rowHTML(c,maxV){
+  const s=D.stocks[c];
+  const hot=s.rate>=8?'hot':(s.rate>=3?'warm':'');
+  const w=Math.min(50,Math.abs(s.value)/maxV*50);
+  return `<div class="row ${hot}" onclick="openStock('${c}')">
+    <div class="r1"><span class="nm">${s.name}</span><span class="pc ${cls(s.rate)} num">${arw(s.rate)}${Math.abs(s.rate).toFixed(2)}%</span></div>
+    <div class="r2"><span class="${cls(s.rate)} num" style="font-weight:700">${nf(s.price)}</span><span class="vl num">${nf(s.value)}억</span></div>
+    <div class="gauge"><u></u><i class="${s.rate<0?'d':''}" style="${s.rate<0?`right:50%;left:auto;width:${w}%`:`width:${w}%`}"></i></div></div>`;
+}
+function viewRank(){
+  const codes=D.ranking.slice(0,60);
+  const dist={};
+  codes.slice(0,20).forEach(c=>{const t=(D.stocks[c].themes||[])[0];
+    if(t){const nm=(D.themes.find(x=>x.id===t)||{}).name||t; dist[nm]=(dist[nm]||0)+1;}});
+  const tot=Object.values(dist).reduce((a,b)=>a+b,0)||1;
+  const pal=['#05b1b8','#f0a02c','#7c5cd6','#2f9e5e','#e8322a','#3b82f6','#94a3b8'];
+  const de=Object.entries(dist).sort((a,b)=>b[1]-a[1]);
+  $('view').innerHTML=`
+  <div class="note"><b>거래대금 상위 ${codes.length}종목</b>. 테마 컬럼으로 쏠림이 보입니다.</div>
+  ${de.length?`<div style="display:flex;height:24px;border-radius:7px;overflow:hidden;margin-bottom:11px;border:1px solid var(--line)">
+    ${de.map(([n,v],i)=>`<div style="width:${v/tot*100}%;background:${pal[i%pal.length]};color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden">${v/tot>0.1?n:''}</div>`).join('')}</div>`:''}
+  <div class="panel"><div class="ts"><table>
+  <thead><tr><th>순위</th><th>종목명</th><th>테마</th><th class="r">현재가</th><th class="r">전일대비</th><th class="r">등락률</th><th class="r">거래대금</th><th class="r">시가총액</th><th class="r">PER</th></tr></thead>
+  <tbody>${codes.map((c,i)=>{const s=D.stocks[c];
+    const ts=(s.themes||[]).map(id=>D.themes.find(x=>x.id===id)).filter(Boolean).slice(0,2);
+    return `<tr onclick="openStock('${c}')">
+      <td class="r num" style="color:var(--ink3)">${i+1}</td>
+      <td><b>${s.name}</b><div style="font-size:10.5px;color:var(--ink3)">${c}${s.market?' · '+s.market:''}</div></td>
+      <td>${ts.map(t=>`<span class="chip" onclick="event.stopPropagation();openTheme('${t.id}')">${t.name}</span>`).join('')||'<span class="chip g">미분류</span>'}</td>
+      <td class="r num"><b>${nf(s.price)}</b></td>
+      <td class="r num ${cls(s.rate)}">${s.diff>0?'+':''}${nf(s.diff)}</td>
+      <td class="r num ${cls(s.rate)}"><b>${arw(s.rate)}${Math.abs(s.rate).toFixed(2)}%</b></td>
+      <td class="r num">${nf(s.value)}억</td><td class="r num">${vfmt(s.cap)}</td>
+      <td class="r num">${s.per?s.per.toFixed(1):'-'}</td></tr>`}).join('')}
+  </tbody></table></div></div>`;
+}
+function openDt(h){$('sheet').innerHTML=h;$('dt').classList.add('on');document.body.style.overflow='hidden';$('sheet').scrollTop=0;}
+function closeDt(){$('dt').classList.remove('on');document.body.style.overflow='';}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDt();});
+function fb(l,v,tag){return `<div class="f"><div class="l">${l}</div><div class="v">${v}</div><div class="c">${tag?`<b style="color:#e8322a">${tag}</b>`:''}</div></div>`}
+
+function openStock(code){
+  const s=D.stocks[code], j=(D.details||{})[code];
+  const ts=(s.themes||[]).map(id=>D.themes.find(x=>x.id===id)).filter(Boolean);
+  if(!j){ return openDt(`<div class="dhead"><div style="font-size:21px;font-weight:900">${s.name}</div>
+    <button class="x" onclick="closeDt()">✕</button></div>
+    <div class="dbody"><div class="blk"><h4>${nf(s.price)}원 ${pct(s.rate)}</h4>
+    <p>거래대금 ${nf(s.value)}억 · 시가총액 ${vfmt(s.cap)} · PER ${s.per?s.per.toFixed(1):'-'}</p>
+    <div class="disc">이 종목은 상세 스냅샷(상위 종목 한정)에 포함되지 않아 뉴스·재무를 표시할 수 없습니다.</div></div></div>`); }
+  const f=j.financial, R=j.reason;
+  openDt(`
+  <div class="dhead">
+    <div style="font-size:11.5px;color:var(--ink3);font-weight:700">${code}${s.market?' · '+s.market:''}</div>
+    <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:2px">
+      <div style="font-size:21px;font-weight:900">${s.name}</div>
+      <div class="${cls(s.rate)} num" style="font-size:21px;font-weight:900">${nf(s.price)}</div>
+      <div class="${cls(s.rate)} num" style="font-size:14.5px;font-weight:800">${arw(s.rate)}${nf(Math.abs(s.diff))} (${pct(s.rate)})</div></div>
+    <div style="margin-top:6px">${ts.map(t=>`<span class="chip" onclick="openTheme('${t.id}')">${t.name}</span>`).join('')||'<span class="chip g">테마 미분류</span>'}</div>
+    <button class="x" onclick="closeDt()">✕</button></div>
+  <div class="dbody">
+    <div class="blk" style="border-left:3px solid var(--teal)">
+      <h4>⚡ 이 종목이 오른 이유
+        ${R&&R.verified?'<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:#e6f7ee;color:#0f7a45;margin-left:6px">✓ 기사 본문 확인</span>':''}</h4>
+      ${R&&R.headline?`<p style="font-size:15px;font-weight:800;color:var(--ink);margin:0 0 10px">${R.headline}</p>`:''}
+      ${R&&R.status==='ok'?`
+        ${R.evidences.map((e,i)=>`<div class="ev"><div class="n">${i+1}</div><div>
+          <div class="t">${e.text||e.title}</div>
+          <div class="m">${e.time} · ${e.text?`<span style="color:var(--ink3)">${e.title.slice(0,34)}</span> · `:''}<a href="${e.url}" target="_blank" rel="noopener">원문 →</a></div></div></div>`).join('')}
+        ${R.theme_context?`<div style="margin-top:9px;padding:9px 11px;background:#f5fbfb;border-radius:8px;font-size:12.8px;color:var(--ink2)">📊 ${R.theme_context}</div>`:''}
+        <div class="disc">${R.verified?`AI가 기사 <b>본문 ${R.read||0}건</b>을 읽고 정리한 내용입니다. 사실 확인을 위해 <b>원문을 함께 확인</b>해 주세요.`:'뉴스는 자동 수집·선별한 것으로 <b>주가 변동의 원인임을 보장하지 않습니다.</b>'} 투자 권유가 아닙니다.</div>`
+      :`<p>${(R&&R.msg)||'뚜렷한 공시·뉴스가 확인되지 않습니다.'}</p>
+        ${R&&R.theme_context?`<div style="padding:9px 11px;background:#f5fbfb;border-radius:8px;font-size:12.8px">📊 ${R.theme_context}</div>`:''}`}
+    </div>
+    <div class="blk">
+      <h4>💰 재무 ${f?`<span style="font-size:11px;font-weight:600;color:var(--ink3)">기준 ${f.period} · DART</span>`:''}</h4>
+      ${f?`<div class="fin">
+        ${fb('시가총액',vfmt(s.cap))}${fb('PER',s.per?s.per.toFixed(1)+'배':'-')}${fb('PBR',s.pbr?s.pbr.toFixed(1)+'배':'-')}
+        ${fb('매출액',f.revenue?nf(Math.round(f.revenue/1e8))+'억':'-')}
+        ${fb('영업이익률',f.opm!=null?f.opm+'%':'-',f.opm<0?'적자':'')}
+        ${fb('부채비율',f.debt!=null?f.debt.toFixed(0)+'%':'-',f.debt>150?'주의':'')}
+        ${fb('ROE',f.roe!=null?f.roe.toFixed(1)+'%':'-')}</div>
+      ${f.opm<0?'<div class="disc" style="background:#fef2f2;border-color:#fbd5d1;color:#b42318">⚠ 최근 보고서 기준 <b>영업적자</b>입니다.</div>':''}
+      <div class="disc">DART 확정 공시 기준이라 실시간이 아닙니다.</div>`
+      :`<p style="color:var(--ink3)">DART에서 재무를 가져오지 못했습니다.</p>`}
+    </div>
+    ${(j.news||[]).length?`<div class="blk"><h4>📰 관련 뉴스</h4>
+      ${j.news.map(n=>`<div class="ev"><div class="n" style="background:var(--ink3)">·</div><div>
+        <div class="t">${n.title}</div><div class="m">${n.time} · <a href="${n.url}" target="_blank" rel="noopener">원문 →</a></div></div></div>`).join('')}</div>`:''}
+  </div>`);
+}
+
+function openTheme(id){
+  const t=D.themes.find(x=>x.id===id)||RAW.themes.find(x=>x.id===id);
+  if(!t) return;
+  const rows=t.codes.map(c=>D.stocks[c]||RAW.stocks[c]).filter(Boolean);
+  const quiet=(RAW.theme_stocks&&RAW.theme_stocks[id]||[]).filter(n=>!rows.some(s=>s.name===n));
+  openDt(`
+  <div class="dhead">
+    <div style="font-size:11.5px;color:var(--ink3);font-weight:700">테마 상세</div>
+    <div style="display:flex;align-items:baseline;gap:11px;margin-top:2px">
+      <div style="font-size:21px;font-weight:900">${t.name}</div>
+      <div class="${cls(t.pct)} num" style="font-size:20px;font-weight:900">${pct(t.pct)}</div></div>
+    <div style="font-size:12.3px;color:var(--ink2);margin-top:3px">
+      거래대금 <b>${vfmt(t.value)}</b> · 조회된 <b>${t.n}</b>종목 (사전 등록 ${t.total}종목) · 상승 <b>${t.up}</b>종목</div>
+    <button class="x" onclick="closeDt()">✕</button></div>
+  <div class="dbody">
+    <div class="blk" style="padding:0;overflow:hidden">
+      <div style="padding:14px 15px 9px"><h4 style="margin:0">📋 구성 종목</h4></div>
+      <div class="ts"><table style="min-width:560px">
+      <thead><tr><th>종목명</th><th class="r">현재가</th><th class="r">등락률</th><th class="r">거래대금</th><th class="r">시가총액</th><th class="r">PER</th></tr></thead>
+      <tbody>${rows.map(s=>`<tr onclick="openStock('${s.code}')">
+        <td><b>${s.name}</b></td><td class="r num">${nf(s.price)}</td>
+        <td class="r num ${cls(s.rate)}"><b>${pct(s.rate)}</b></td>
+        <td class="r num">${nf(s.value)}억</td><td class="r num">${vfmt(s.cap)}</td>
+        <td class="r num">${s.per?s.per.toFixed(1):'-'}</td></tr>`).join('')}</tbody></table></div></div>
+    ${quiet.length?`<div class="blk"><h4>😴 오늘 조용한 구성 종목</h4>
+      <p style="font-size:12.5px">거래대금이 낮아 상위권에 없는 종목입니다. <b>순환매 후발주 후보</b>로 볼 수 있습니다.</p>
+      <div>${quiet.map(n=>`<span class="chip g">${n}</span>`).join(' ')}</div></div>`:''}
+  </div>`);
+}
+load();
+setInterval(load, 180000);
+</script>
+</body>
+</html>
