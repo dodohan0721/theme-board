@@ -381,7 +381,7 @@ _ACC = {"매출액": "revenue", "영업수익": "revenue", "수익(매출액)": 
 
 def dart_financials(code):
     """최근 확정 보고서 기준 요약 재무. 실패 시 None."""
-    p = os.path.join(CACHE, f"fin_{code}.json")
+    p = os.path.join(CACHE, f"fin2_{code}.json")
     if os.path.exists(p) and time.time() - os.path.getmtime(p) < 3 * 86400:
         return json.load(open(p, encoding="utf-8"))
     corp = dart_corp_map().get(code)
@@ -405,12 +405,21 @@ def dart_financials(code):
                 if not key:
                     continue
                 if it.get("fs_div") == "CFS" or key not in best:
+                    # 분기·반기 보고서에서 손익 항목의 thstrm_amount 는 '해당 3개월'
+                    # 금액이고, thstrm_add_amount 가 '당기 누적'이다. 누적을 우선한다.
+                    # (자산·부채·자본은 시점 값이라 누적 개념이 없어 그대로 쓴다)
+                    raw = ""
+                    if key in ("revenue", "op", "net"):
+                        raw = (it.get("thstrm_add_amount") or "").strip()
+                    if not raw:
+                        raw = (it.get("thstrm_amount") or "0").strip()
                     try:
-                        best[key] = int(it.get("thstrm_amount", "0").replace(",", ""))
+                        best[key] = int(raw.replace(",", ""))
                     except Exception:
                         pass
             if "revenue" in best or "op" in best:
-                out = {"period": f"{year} {label}", "fs": "연결우선", **best}
+                _lbl = label if rep == "11011" else label + " 누적"
+                out = {"period": f"{year} {_lbl}", "fs": "연결우선", **best}
                 if best.get("revenue"):
                     out["opm"] = round(best.get("op", 0) / best["revenue"] * 100, 1)
                 if best.get("equity"):

@@ -14,6 +14,14 @@ Vercel 에는 이 web/ 폴더(정적 파일)만 올라가므로 API 키가 서�
 import argparse, json, os, subprocess, sys, time
 from concurrent.futures import ThreadPoolExecutor
 
+# GitHub Actions 러너는 UTC 로 돌아간다. 화면에 찍히는 '기준시각'이
+# 9시간 어긋나지 않도록 한국시간으로 고정한다.
+os.environ.setdefault("TZ", "Asia/Seoul")
+try:
+    time.tzset()
+except Exception:
+    pass
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 WEB = os.path.join(HERE, "web")
 os.makedirs(WEB, exist_ok=True)
