@@ -32,6 +32,53 @@ S = importlib.util.module_from_spec(_s)
 _s.loader.exec_module(S)
 
 
+
+# ══════════════════════════════════════════════════════════════════════════
+# AI 판독 캐시
+#   같은 종목이고 수집된 기사 목록이 그대로면 이전 판독 결과를 재사용한다.
+#   기사는 그대로인데 다시 물어보면 답도 똑같이 나오므로 낭비일 뿐이다.
+#   새 기사가 하나라도 생기면 키가 달라져 즉시 다시 판독한다(장중 새 재료 반영).
+#   날짜가 바뀌면 키에 든 날짜가 달라져 자동으로 무효가 된다.
+# ══════════════════════════════════════════════════════════════════════════
+import hashlib, glob as _glob
+
+_AI_DIR = os.path.join(HERE, ".cache", "ai")
+_ai_hit = [0, 0]          # [재사용, 새로 판독]
+
+
+def _ai_purge(today):
+    """어제까지의 판독 캐시는 지운다."""
+    for f in _glob.glob(os.path.join(_AI_DIR, "*.json")):
+        if not os.path.basename(f).startswith(today):
+            try:
+                os.remove(f)
+            except Exception:
+                pass
+
+
+def _ai_cached(AI, code, name, rate, picked, ctx):
+    os.makedirs(_AI_DIR, exist_ok=True)
+    today = time.strftime("%Y%m%d")
+    urls = sorted((a.get("url") or a.get("nurl") or "") for a in picked)
+    key = hashlib.sha1("|".join(urls).encode()).hexdigest()[:16]
+    p = os.path.join(_AI_DIR, f"{today}_{code}_{key}.json")
+    if os.path.exists(p):
+        try:
+            r = json.load(open(p, encoding="utf-8"))
+            _ai_hit[0] += 1
+            return r
+        except Exception:
+            pass
+    r = AI.analyze(AI._KEY, name, code, rate, picked, ctx)
+    _ai_hit[1] += 1
+    if r:
+        try:
+            json.dump(r, open(p, "w", encoding="utf-8"), ensure_ascii=False)
+        except Exception:
+            pass
+    return r
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--detail", type=int, default=80, help="뉴스·재무를 담을 상위 종목 수")
@@ -74,6 +121,8 @@ def main():
             print(f" AI 판독 사용 — 상위 {a.ai_top}종목의 기사 본문을 읽습니다")
 
     ai_targets = set(d["ranking"][:a.ai_top]) if AI else set()
+    if AI:
+        _ai_purge(time.strftime('%Y%m%d'))
     ai_stat = {"ok": 0, "no": 0}
 
     def detail(code):
@@ -98,7 +147,7 @@ def main():
             try:
                 ctx = (reason or {}).get("theme_context")
                 picked, _ = AI.stock_news(S, name)      # 제목 필터를 거친 기사만
-                r = AI.analyze(AI._KEY, name, code, s.get("rate", 0), picked, ctx) if picked else None
+                r = _ai_cached(AI, code, name, s.get("rate", 0), picked, ctx) if picked else None
             except Exception as e:
                 r = None
                 print(f"      [AI 오류] {name}: {e}")
@@ -143,6 +192,8 @@ def main():
     if AI:
         print(f"   AI 본문 판독: 사유 확인 {ai_stat['ok']}종목 · 관련 기사 없음 {ai_stat['no']}종목")
     print(f"   소요 {time.time()-t0:.0f}초 · 기준시각 {d['ts']}")
+    if AI:
+        print(f"   AI 판독 — 새로 {_ai_hit[1]}건 / 캐시 재사용 {_ai_hit[0]}건")
     print("=" * 70)
 
     if a.deploy:

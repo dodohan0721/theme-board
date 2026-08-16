@@ -5,7 +5,7 @@ name: 테마보드 스냅샷 갱신
 on:
   schedule:
     - cron: "*/15 0-6 * * 1-5"    # 평일 장중 15분 간격
-    - cron: "40 6 * * 1-5"        # KST 15:40 — 종가 확정본
+    - cron: "50 23 * * 0-4"        # KST 08:50 — 개장 전 예열
   workflow_dispatch:               # Actions 탭에서 수동 실행
 
 concurrency:
