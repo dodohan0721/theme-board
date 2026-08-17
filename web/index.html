@@ -41,12 +41,22 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .note b{color:var(--ink)}
 .err{background:#fff1f0;border:1px solid #fbc5c0;color:#b42318;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.8;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.cards.cp{grid-template-columns:repeat(3,1fr);gap:10px}
+.cards.cp .cpill{font-size:14px;padding:6px 11px}
+.cards.cp .cpct{font-size:16px;min-width:70px}
+.cards.cp .cval{font-size:13px}
+.cards.cp .chl{font-size:11.6px;padding:6px 9px;margin-bottom:6px}
+.cards.cp .cmore{padding:7px;font-size:11.8px}
+.chl b{color:var(--ink);font-weight:800;white-space:nowrap}
+.chl .tx{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.chl .ok{color:#137a5c;font-weight:800}
 .card{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 1px 3px rgba(20,30,40,.05)}
 .card:hover{box-shadow:0 6px 18px rgba(20,30,40,.11)}
 .chead{display:flex;gap:8px;padding:9px 10px 8px}
 .cpill{background:var(--teal);color:#fff;font-weight:800;font-size:15px;padding:7px 13px;border-radius:9px;flex:1;cursor:pointer;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cpct{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 11px;font-weight:900;font-size:19px;display:flex;align-items:center;min-width:88px;justify-content:flex-end}
+.cval{background:#eef6f6;border:1px solid var(--line);border-radius:9px;padding:5px 9px;font-weight:800;font-size:14px;color:#3d5155;display:flex;align-items:center;white-space:nowrap}
+.cpct{background:#fff;border:1px solid var(--line);border-radius:9px;padding:5px 9px;font-weight:900;font-size:18px;display:flex;align-items:center;min-width:76px;justify-content:flex-end}
 .cmeta{display:flex;gap:10px;padding:0 12px 8px;font-size:11.5px;color:var(--ink3);flex-wrap:wrap}
 .cmeta b{color:var(--ink2)}
 .chl{background:var(--band);margin:0 10px 8px;padding:8px 11px;border-radius:8px;font-size:12.6px;color:var(--ink2);cursor:pointer;
@@ -131,10 +141,26 @@ const pct=r=>(r>0?'+':'')+Number(r).toFixed(2)+'%';
 const cls=r=>r>0?'up':(r<0?'dn':'flat');
 const arw=r=>r>0?'▲':(r<0?'▼':'-');
 const vfmt=v=>v==null?'-':(v>=10000?(v/10000).toFixed(1).replace(/\.0$/,'')+'조':nf(v)+'억');
-let RAW=null, D=null, cur='home', sortKey='value', minv=300;
+let RAW=null, D=null, cur='home', sortKey='value', minv=300, topN=0, wgt='cap', compact=false;
 
+// 테마를 '거래대금 상위 topN 종목'만으로 다시 계산한다.
+// topN=0 이면 원래대로 전체 구성 종목을 쓴다.
+function tview(t){
+  const S=RAW.stocks;
+  if(!topN||!t.codes||t.codes.length<=topN) return t;
+  const pick=[...t.codes].sort((a,b)=>((S[b]||{}).value||0)-((S[a]||{}).value||0)).slice(0,topN);
+  let val=0,cap=0,wsum=0,rsum=0,up=0;
+  pick.forEach(c=>{const x=S[c]||{}; const r=x.rate||0, cp=x.cap||0;
+    val+=x.value||0; cap+=cp; wsum+=cp*r; rsum+=r; if(r>0)up++;});
+  const byRate=[...pick].sort((a,b)=>((S[b]||{}).rate||0)-((S[a]||{}).rate||0));
+  return {...t, codes:byRate, value:Math.round(val),
+    pct:+((cap?wsum/cap:rsum/pick.length)).toFixed(2),
+    pct_eq:+(rsum/pick.length).toFixed(2),
+    up, n:pick.length, picked:true};
+}
 function applyFilter(){
-  const keep=RAW.themes.filter(t=>t.value>=minv);
+  const keep=RAW.themes.map(tview).map(t=>({...t,pct:(wgt==='eq'?t.pct_eq:t.pct)}))
+                       .filter(t=>t.value>=minv);
   const codes=new Set(); keep.forEach(t=>t.codes.forEach(c=>codes.add(c)));
   D={...RAW, themes:keep, hidden:RAW.themes.length-keep.length,
      ranking:RAW.ranking.filter(c=>codes.has(c))};
@@ -158,32 +184,60 @@ function render(){ if(!D)return; cur==='home'?viewHome():viewRank(); }
 
 function viewHome(){
   let ts=[...D.themes];
+  if(sortKey==='value')ts.sort((a,b)=>b.value-a.value);
   if(sortKey==='pct')ts.sort((a,b)=>b.pct-a.pct);
   if(sortKey==='ratio')ts.sort((a,b)=>(b.up/b.n)-(a.up/a.n));
   const age=Math.round((Date.now()-new Date(D.ts.replace(' ','T')+'+09:00').getTime())/60000);
   $('view').innerHTML=`
   ${age>20?`<div class="stale">⏱ 이 화면은 <b>${D.ts}</b> 기준 스냅샷입니다 (약 ${age}분 전). 실시간 시세가 아닙니다.</div>`:''}
   <div class="note">사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.
-  테마 <b>${D.theme_total}개</b> 중 조건을 넘긴 <b>${D.themes.length}개</b>만 표시합니다${D.hidden?` (거래대금 ${minv}억 미만 ${D.hidden}개 숨김)`:''}.</div>
+  테마 <b>${D.theme_total}개</b> 중 조건을 넘긴 <b>${D.themes.length}개</b>만 표시합니다${D.hidden?` (거래대금 ${minv}억 미만 ${D.hidden}개 숨김)`:''}.
+  ${topN?`<br><b style="color:var(--teal-d,#04868c)">테마마다 거래대금 상위 ${topN}종목만으로 거래대금·등락률을 다시 계산했습니다.</b> 대형주가 섞여 희석되는 것을 막아, 그날 실제로 주도한 테마가 위로 올라옵니다.`:''}</div>
   <div class="bar"><div class="seg">
     ${[['value','거래대금순'],['pct','등락률순'],['ratio','상승비율순']].map(([k,l])=>
       `<button class="${sortKey===k?'on':''}" onclick="sortKey='${k}';viewHome()">${l}</button>`).join('')}
   </div>
+  <div class="seg"><button class="${compact?'on':''}" onclick="compact=!compact;viewHome()">${compact?'✓ 한눈에':'한눈에'}</button></div>
   <select style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--ink2);border:1px solid var(--line);border-radius:9px;background:#fff"
     onchange="minv=+this.value;applyFilter();viewHome()">
     ${[[0,'테마 거래대금 전체'],[100,'100억 이상'],[300,'300억 이상'],[500,'500억 이상'],[1000,'1,000억 이상'],[3000,'3,000억 이상']]
       .map(([v,l])=>`<option value="${v}" ${minv===v?'selected':''}>${l}</option>`).join('')}
+  </select>
+  <select style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--ink2);border:1px solid var(--line);border-radius:9px;background:#fff"
+    onchange="topN=+this.value;applyFilter();viewHome()">
+    ${[[0,'테마 구성 전체'],[3,'주도 3종목'],[5,'주도 5종목'],[10,'주도 10종목'],[20,'주도 20종목']]
+      .map(([v,l])=>`<option value="${v}" ${topN===v?'selected':''}>${l}</option>`).join('')}
+  </select>
+  <select style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--ink2);border:1px solid var(--line);border-radius:9px;background:#fff"
+    onchange="wgt=this.value;applyFilter();viewHome()">
+    ${[['cap','시총가중'],['eq','동일가중']].map(([v,l])=>
+      `<option value="${v}" ${wgt===v?'selected':''}>${l}</option>`).join('')}
   </select></div>
-  <div class="cards">${ts.map(cardHTML).join('')||'<div class="load">조건에 맞는 테마가 없습니다.</div>'}</div>`;
+  <div class="cards${compact?' cp':''}">${(compact?ts.slice(0,6):ts).map(cardHTML).join('')||'<div class="load">조건에 맞는 테마가 없습니다.</div>'}</div>`;
+}
+// 테마를 끌어올린 종목의 '상승 사유'를 테마 카드 대표 문장으로 쓴다.
+// 이미 판독해 둔 결과(details)를 재사용하므로 추가 호출이 없다.
+function themeHead(t){
+  const DT=RAW.details||{};
+  for(const c of (t.codes||[])){
+    const r=(DT[c]||{}).reason;
+    if(r&&r.status==='ok'&&r.headline)
+      return {code:c, name:(RAW.stocks[c]||{}).name||'', headline:r.headline, verified:!!r.verified};
+  }
+  return null;
 }
 function cardHTML(t){
-  const codes=t.codes.slice(0,5);
+  const codes=t.codes.slice(0,compact?3:5);
+  const hd=themeHead(t);
   const maxV=Math.max(...t.codes.map(c=>D.stocks[c].value),1);
   return `<div class="card">
     <div class="chead"><div class="cpill" onclick="openTheme('${t.id}')">${t.name}</div>
+      <div class="cval num">${vfmt(t.value)}</div>
       <div class="cpct ${cls(t.pct)} num">${pct(t.pct)}</div></div>
-    <div class="cmeta"><span>거래대금 <b>${vfmt(t.value)}</b></span>
-      <span>상승 <b>${t.up}/${t.n}</b></span><span class="chip g">${t.cat}</span>
+    ${hd?`<div class="chl" title="${hd.headline}" onclick="openStock('${hd.code}')">
+      <b>${hd.name}</b><span class="tx">${hd.headline}</span>${hd.verified?'<span class="ok">✓</span>':''}</div>`:''}
+    <div class="cmeta"><span>상승 <b>${t.up}/${t.n}</b>${t.picked?` <span style="color:var(--teal)">주도 ${t.n}</span>`:''}</span>
+      <span class="chip g">${t.cat}</span>
       ${Math.abs(t.pct-t.pct_eq)>1.5?`<span>동일가중 ${pct(t.pct_eq)}</span>`:''}</div>
     <div class="rows">${codes.map(c=>rowHTML(c,maxV)).join('')}</div>
     <button class="cmore" onclick="openTheme('${t.id}')">이 테마 종목 ${t.n}개 전체보기 →</button></div>`;
@@ -280,7 +334,7 @@ function openStock(code){
 }
 
 function openTheme(id){
-  const t=D.themes.find(x=>x.id===id)||RAW.themes.find(x=>x.id===id);
+  const t=RAW.themes.find(x=>x.id===id)||D.themes.find(x=>x.id===id);
   if(!t) return;
   const rows=t.codes.map(c=>D.stocks[c]||RAW.stocks[c]).filter(Boolean);
   const quiet=(RAW.theme_stocks&&RAW.theme_stocks[id]||[]).filter(n=>!rows.some(s=>s.name===n));
