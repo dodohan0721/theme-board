@@ -320,10 +320,11 @@ function openStock(code){
       ${f?`<div class="fin">
         ${fb('시가총액',vfmt(s.cap))}${fb('PER',s.per?s.per.toFixed(1)+'배':'-')}${fb('PBR',s.pbr?s.pbr.toFixed(1)+'배':'-')}
         ${fb('매출액',f.revenue?nf(Math.round(f.revenue/1e8))+'억':'-')}
+        ${fb('당기순이익',f.net!=null?nf(Math.round(f.net/1e8))+'억':'-',f.net<0?'적자':'')}
         ${fb('영업이익률',f.opm!=null?f.opm+'%':'-',f.opm<0?'적자':'')}
         ${fb('부채비율',f.debt!=null?f.debt.toFixed(0)+'%':'-',f.debt>150?'주의':'')}
         ${fb('ROE',f.roe!=null?f.roe.toFixed(1)+'%':'-')}</div>
-      ${f.opm<0?'<div class="disc" style="background:#fef2f2;border-color:#fbd5d1;color:#b42318">⚠ 최근 보고서 기준 <b>영업적자</b>입니다.</div>':''}
+      ${(f.opm<0||f.net<0)?`<div class="disc" style="background:#fef2f2;border-color:#fbd5d1;color:#b42318">⚠ 최근 보고서 기준 <b>${f.opm<0&&f.net<0?'영업적자·순손실':(f.opm<0?'영업적자':'순손실')}</b>입니다.</div>`:''}
       <div class="disc">DART 확정 공시 기준이라 실시간이 아닙니다.</div>`
       :`<p style="color:var(--ink3)">DART에서 재무를 가져오지 못했습니다.</p>`}
     </div>
