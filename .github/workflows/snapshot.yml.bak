@@ -1,0 +1,66 @@
+name: 테마보드 스냅샷 갱신
+
+# GitHub Actions cron 은 UTC 기준. 한국시간 = UTC + 9
+#   00:00~06:59 UTC  =  09:00~15:59 KST (장중)
+on:
+  schedule:
+    - cron: "*/15 0-6 * * 1-5"    # 평일 장중 15분 간격
+    - cron: "50 23 * * 0-4"        # KST 08:50 — 개장 전 예열
+  workflow_dispatch:               # Actions 탭에서 수동 실행
+
+concurrency:
+  group: snapshot
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TZ: Asia/Seoul
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # 한투 토큰(24h)·DART 기업코드·종목마스터·스캔순서를 다음 실행에 물려준다
+      - name: 캐시 복원
+        uses: actions/cache@v4
+        with:
+          path: .cache
+          key: tb-cache-${{ github.run_id }}
+          restore-keys: tb-cache-
+
+      - name: 스냅샷 생성
+        env:
+          KIS_APP_KEY:         ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET:      ${{ secrets.KIS_APP_SECRET }}
+          KIS_ENV:             real
+          DART_API_KEY:        ${{ secrets.DART_API_KEY }}
+          NAVER_CLIENT_ID:     ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          ANTHROPIC_API_KEY:   ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python3 export_snapshot.py --cycles 2 --detail 60 --ai --ai-top 30
+          echo "--- 생성 결과 ---"
+          ls -lh web/data.json
+
+      - name: Vercel 배포
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: npx --yes vercel@latest deploy web --prod --yes --token "$VERCEL_TOKEN"
+
+      - name: Cloudflare Pages 배포
+        env:
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # 프로젝트가 없으면 만들고, 이미 있으면 그냥 넘어간다
+          npx --yes wrangler@latest pages project create theme-board \
+            --production-branch main || true
+          npx --yes wrangler@latest pages deploy web \
+            --project-name theme-board --branch main --commit-dirty=true
