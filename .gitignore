@@ -15,3 +15,6 @@ themes_naver.json
 
 # Vercel 로컬 설정 (프로젝트 ID는 Secrets 로 전달)
 web/.vercel/
+
+# 회원 전용 데이터 — 절대 공개 저장소에 올리지 않는다
+web/priv/

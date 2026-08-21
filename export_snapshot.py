@@ -176,18 +176,36 @@ def main():
     theme_stocks = {t["id"]: next((x["stocks"] for x in S.THEMES if x["id"] == t["id"]), [])
                     for t in d["themes"]}
 
+    # ── 공개용 / 회원용 분리 ───────────────────────────────────────────
+    # 첫 화면(테마 카드·랭킹)에 필요한 것만 data.json 으로 내보내고,
+    # 눌러야 나오는 상세(근거 기사·재무·뉴스)는 priv/detail.json 으로 뺀다.
+    # priv/ 는 Cloudflare 함수가 로그인·승인을 확인한 뒤에만 내어준다.
+    # 카드에 한 줄 걸리는 대표 문장(headline)만 공개 쪽에 남긴다.
+    heads = {c: v["reason"]["headline"]
+             for c, v in details.items()
+             if (v.get("reason") or {}).get("headline")}
+
     out = {
         "ts": d["ts"], "themes": d["themes"], "stocks": d["stocks"], "ranking": d["ranking"],
         "universe": d["universe"], "scanned": d["scanned"], "theme_total": d["theme_total"],
-        "details": details, "theme_stocks": theme_stocks,
+        "heads": heads, "detail_codes": sorted(details.keys()),
+        "theme_stocks": theme_stocks,
         "generated_by": "export_snapshot.py",
     }
     p = os.path.join(WEB, "data.json")
     json.dump(out, open(p, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
     kb = os.path.getsize(p) / 1024
 
+    pdir = os.path.join(WEB, "priv")
+    os.makedirs(pdir, exist_ok=True)
+    pp = os.path.join(pdir, "detail.json")
+    json.dump({"ts": d["ts"], "details": details},
+              open(pp, "w", encoding="utf-8"), ensure_ascii=False, separators=(",", ":"))
+    kb2 = os.path.getsize(pp) / 1024
+
     print("\n" + "=" * 70)
-    print(f" 완료 → web/data.json  ({kb:,.0f} KB)")
+    print(f" 완료 → web/data.json      공개  ({kb:,.0f} KB)")
+    print(f"        web/priv/detail.json 회원  ({kb2:,.0f} KB)")
     print(f"   테마 {len(d['themes'])}개 · 종목 {len(d['stocks'])}개 · 상세 {len(details)}종목")
     if AI:
         print(f"   AI 본문 판독: 사유 확인 {ai_stat['ok']}종목 · 관련 기사 없음 {ai_stat['no']}종목")
