@@ -124,6 +124,7 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--teal-l)}
     <button data-k="rank" onclick="go('rank')">랭킹</button>
     <a href="guide.html" style="padding:7px 14px;border-radius:8px;font-size:14px;font-weight:700;color:var(--teal-d);text-decoration:none;border:1px solid var(--teal);margin-left:4px">📖 화면 보는 법</a>
   </nav>
+  <button id="authbtn" onclick="openAuth()" style="padding:7px 13px;border-radius:8px;font-size:13.5px;font-weight:800;border:1px solid #d8dee4;background:#fff;color:#333;cursor:pointer;margin-left:8px">로그인</button>
   <div class="stat"><span class="dot" id="dot"></span><span id="stat">불러오는 중…</span></div>
 </div></div>
 <div class="wrap" id="view"><div class="load">데이터를 불러오는 중입니다…</div></div>
@@ -142,6 +143,7 @@ const cls=r=>r>0?'up':(r<0?'dn':'flat');
 const arw=r=>r>0?'▲':(r<0?'▼':'-');
 const vfmt=v=>v==null?'-':(v>=10000?(v/10000).toFixed(1).replace(/\.0$/,'')+'조':nf(v)+'억');
 let RAW=null, D=null, cur='home', sortKey='value', minv=300, topN=0, wgt='cap', compact=false, dedup=true, dupN=0;
+let DETAIL=null, ME=null;
 
 // 테마를 '거래대금 상위 topN 종목'만으로 다시 계산한다.
 // topN=0 이면 원래대로 전체 구성 종목을 쓴다.
@@ -168,7 +170,7 @@ function applyFilter(){
 async function load(){
   try{
     const r=await fetch('data.json?t='+Date.now());
-    RAW=await r.json(); applyFilter();
+    RAW=await r.json(); applyFilter(); checkMe();
     const age=(Date.now()-new Date(RAW.ts.replace(' ','T')+'+09:00').getTime())/60000;
     $('dot').className='dot'+(age>90?' err':'');
     $('stat').textContent=`${RAW.ts} 기준 · 테마 ${RAW.themes.length} · 종목 ${RAW.scanned}`;
@@ -222,11 +224,9 @@ function viewHome(){
 // 테마를 끌어올린 종목의 '상승 사유'를 테마 카드 대표 문장으로 쓴다.
 // 이미 판독해 둔 결과(details)를 재사용하므로 추가 호출이 없다.
 function themeHead(t){
-  const DT=RAW.details||{};
+  const H=RAW.heads||{};
   for(const c of (t.codes||[])){
-    const r=(DT[c]||{}).reason;
-    if(r&&r.status==='ok'&&r.headline)
-      return {code:c, name:(RAW.stocks[c]||{}).name||'', headline:r.headline, verified:!!r.verified};
+    if(H[c]) return {code:c, name:(RAW.stocks[c]||{}).name||'', headline:H[c], verified:true};
   }
   return null;
 }
@@ -312,8 +312,115 @@ function closeDt(){$('dt').classList.remove('on');document.body.style.overflow='
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeDt();});
 function fb(l,v,tag){return `<div class="f"><div class="l">${l}</div><div class="v">${v}</div><div class="c">${tag?`<b style="color:#e8322a">${tag}</b>`:''}</div></div>`}
 
-function openStock(code){
-  const s=D.stocks[code], j=(D.details||{})[code];
+
+// ── 회원 전용 상세 ───────────────────────────────────────────────────────
+// 첫 화면(테마 카드 · 종목 시세 · 랭킹 · 대표 문장)은 누구나 볼 수 있다.
+// 종목을 눌렀을 때 나오는 상세(상승 사유 근거 · 재무 · 뉴스)만 회원에게 열린다.
+// 데이터 자체가 다른 파일(priv/detail.json)로 나뉘어 있고 서버가 지키므로,
+// 화면만 가린 것이 아니라 실제로 내려받을 수 없다.
+async function checkMe(){
+  try{ const r=await fetch('/api/me'); ME=await r.json(); }catch(e){ ME=null; }
+  const b=$('authbtn'); if(!b) return;
+  if(ME&&ME.email) b.textContent = ME.paid ? '회원 ✓' : '승인 대기';
+  else b.textContent = '로그인';
+}
+async function needDetail(){
+  if(DETAIL) return true;
+  let r;
+  try{ r=await fetch('priv/detail.json?t='+Date.now()); }
+  catch(e){ lockSheet('상세를 불러오지 못했습니다', e.message); return false; }
+  if(r.status===401){ openAuth(); return false; }
+  if(r.status===402){ let j={}; try{ j=await r.json(); }catch(e){} payWall(j); return false; }
+  if(!r.ok){ lockSheet('상세를 불러오지 못했습니다', 'HTTP '+r.status); return false; }
+  const j=await r.json(); DETAIL=j.details||j; return true;
+}
+function lockSheet(title, msg){
+  openDt(`<div class="dhead"><div style="font-size:20px;font-weight:900">${title}</div>
+    <button class="x" onclick="closeDt()">✕</button></div>
+    <div class="dbody"><div class="blk"><p>${msg||''}</p></div></div>`);
+}
+function payWall(j){
+  const u=(j&&j.pay_url)||'';
+  openDt(`<div class="dhead"><div style="font-size:20px;font-weight:900">회원 전용 정보입니다</div>
+    <button class="x" onclick="closeDt()">✕</button></div>
+  <div class="dbody"><div class="blk" style="border-left:3px solid var(--teal)">
+    <h4>🔒 상세는 결제 후 열립니다</h4>
+    <p><b>${(j&&j.email)||''}</b> 으로 로그인되어 있습니다.<br>
+       테마·거래대금·등락률·랭킹은 지금처럼 계속 보실 수 있고,<br>
+       종목을 눌렀을 때 나오는 <b>상승 사유 근거 기사 · 재무 8지표 · 관련 뉴스</b>는 회원에게만 열립니다.</p>
+    ${u?`<p style="margin-top:14px"><a href="${u}" target="_blank" rel="noopener"
+       style="display:inline-block;padding:12px 20px;border-radius:10px;background:var(--teal-d,#04868c);color:#fff;font-weight:800;text-decoration:none">결제하고 이용하기 →</a></p>`
+      :`<div class="disc">결제 페이지가 아직 연결되지 않았습니다. 관리자 승인 후 바로 열립니다.</div>`}
+  </div></div>`);
+}
+function openAuth(){
+  openDt(`<div class="dhead"><div style="font-size:20px;font-weight:900">이메일로 로그인</div>
+    <button class="x" onclick="closeDt()">✕</button></div>
+  <div class="dbody"><div class="blk">
+    <p>테마·거래대금·등락률·랭킹은 <b>로그인 없이</b> 보실 수 있습니다.<br>
+       종목을 눌렀을 때 나오는 <b>상승 사유 근거 기사 · 재무 · 뉴스</b>만 회원에게 열립니다.</p>
+    <div style="display:flex;gap:8px;margin:14px 0 0">
+      <input id="au_em" type="email" autocomplete="email" placeholder="name@example.com"
+             style="flex:1;padding:11px 12px;border:1px solid #d8dee4;border-radius:9px;font-size:15px">
+      <button id="au_b1" onclick="sendCode()"
+             style="padding:11px 16px;border:0;border-radius:9px;background:var(--teal-d,#04868c);color:#fff;font-weight:800;cursor:pointer;white-space:nowrap">인증번호 받기</button>
+    </div>
+    <div id="au_s2" style="display:none;margin-top:10px">
+      <div style="display:flex;gap:8px">
+        <input id="au_cd" inputmode="numeric" maxlength="6" placeholder="6자리 숫자"
+             style="flex:1;padding:11px 12px;border:1px solid #d8dee4;border-radius:9px;font-size:15px;letter-spacing:4px">
+        <button onclick="verifyCode()"
+             style="padding:11px 22px;border:0;border-radius:9px;background:#111;color:#fff;font-weight:800;cursor:pointer">확인</button>
+      </div>
+      <div class="disc">인증번호는 <b>5분</b> 동안 쓸 수 있습니다. 메일이 안 오면 스팸함도 확인해 주세요.</div>
+    </div>
+    <div id="au_msg" style="margin-top:12px;font-size:13.5px;color:var(--ink2);white-space:pre-line"></div>
+    ${ME&&ME.email?`<div class="disc">현재 <b>${ME.email}</b> 로 로그인되어 있습니다.
+      <a href="#" onclick="doLogout();return false;" style="color:var(--teal-d,#04868c);font-weight:800">로그아웃</a></div>`:''}
+  </div></div>`);
+  setTimeout(()=>{const e=$('au_em'); if(e){ if(ME&&ME.email)e.value=ME.email; e.focus(); }},60);
+}
+function auMsg(t,bad){ const m=$('au_msg'); if(m){ m.textContent=t; m.style.color=bad?'#b42318':'var(--ink2)'; } }
+async function sendCode(){
+  const em=($('au_em').value||'').trim();
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(em)){ auMsg('이메일 주소를 다시 확인해 주세요.',1); return; }
+  const b=$('au_b1'); b.disabled=true; b.textContent='보내는 중…'; auMsg('');
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+                                     body:JSON.stringify({email:em})});
+    const j=await r.json();
+    if(!r.ok){ auMsg(j.msg||'발송에 실패했습니다. 잠시 후 다시 시도해 주세요.',1); }
+    else{
+      $('au_s2').style.display='block';
+      if(j.dev_code) auMsg('시험 모드 — 인증번호 '+j.dev_code);
+      else auMsg(j.sent?(em+' 으로 인증번호를 보냈습니다.'):(j.msg||''), !j.sent);
+      const c=$('au_cd'); if(c)c.focus();
+    }
+  }catch(e){ auMsg('네트워크 오류: '+e.message,1); }
+  b.disabled=false; b.textContent='인증번호 받기';
+}
+async function verifyCode(){
+  const em=($('au_em').value||'').trim(), cd=($('au_cd').value||'').replace(/\D/g,'');
+  if(cd.length!==6){ auMsg('6자리 숫자를 입력해 주세요.',1); return; }
+  try{
+    const r=await fetch('/api/verify',{method:'POST',headers:{'Content-Type':'application/json'},
+                                      body:JSON.stringify({email:em,code:cd})});
+    const j=await r.json();
+    if(!r.ok){ auMsg('인증번호가 맞지 않거나 시간이 지났습니다. 다시 받아 주세요.',1); return; }
+    ME=j; DETAIL=null; checkMe();
+    if(j.paid){ closeDt(); }
+    else payWall(j);
+  }catch(e){ auMsg('네트워크 오류: '+e.message,1); }
+}
+async function doLogout(){
+  try{ await fetch('/api/logout',{method:'POST'}); }catch(e){}
+  ME=null; DETAIL=null; checkMe(); closeDt();
+}
+
+async function openStock(code){
+  const s=D.stocks[code];
+  if(!await needDetail()) return;
+  const j=(DETAIL||{})[code];
   const ts=(s.themes||[]).map(id=>D.themes.find(x=>x.id===id)).filter(Boolean);
   if(!j){ return openDt(`<div class="dhead"><div style="font-size:21px;font-weight:900">${s.name}</div>
     <button class="x" onclick="closeDt()">✕</button></div>
