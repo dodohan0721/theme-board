@@ -1,5 +1,5 @@
-// 공통 — 서명(HMAC-SHA256)만으로 인증번호와 로그인 증표를 만든다.
-// 데이터베이스가 없어도 되고, 비밀번호를 보관하지 않는다.
+// 공통 — 서명(HMAC-SHA256)으로 인증번호와 로그인 증표를 만들고,
+// 승인 명단은 Cloudflare KV 에 둔다(관리자 화면에서 즉시 바꿀 수 있게).
 
 const enc = new TextEncoder();
 
@@ -76,14 +76,52 @@ export function cookie(req, name) {
   return null;
 }
 
-// ── 승인(결제) 여부 ───────────────────────────────────────────────────────
-// MEMBERS 환경변수에 승인된 이메일을 쉼표로 적어 둔다.  "*" 이면 전원 허용.
-// 결제 시스템을 붙이면 이 함수 하나만 바꾸면 된다.
-export function isMember(env, email) {
+// ── 회원 명부 (KV) ────────────────────────────────────────────────────────
+// 키   m:<이메일>
+// 값   { email, status: "pending" | "approved", created, approved, seen }
+export const MKEY = (email) => "m:" + norm(email);
+
+export async function getMember(env, email) {
+  if (!env.TB) return null;
+  const v = await env.TB.get(MKEY(email));
+  if (!v) return null;
+  try { return JSON.parse(v); } catch (e) { return null; }
+}
+
+export async function saveMember(env, m) {
+  if (!env.TB) return;
+  await env.TB.put(MKEY(m.email), JSON.stringify(m));
+}
+
+// 인증을 마친 사람을 명부에 남긴다. 처음이면 '승인 대기'로.
+export async function touchMember(env, email) {
+  if (!env.TB) return null;
+  const e = norm(email);
+  const cur = await getMember(env, e);
+  const now = Date.now();
+  const m = cur
+    ? { ...cur, seen: now }
+    : { email: e, status: "pending", created: now, seen: now };
+  await saveMember(env, m);
+  return m;
+}
+
+// ── 승인 여부 ─────────────────────────────────────────────────────────────
+// KV 가 먼저, 환경변수 MEMBERS 는 비상용 고정 명단으로 함께 인정한다.
+// (KV 를 붙이기 전 설정이 그대로 살아 있게 하려는 것)
+export async function isMember(env, email) {
+  const e = norm(email);
   const raw = (env.MEMBERS || "").trim();
-  if (!raw) return false;
   if (raw === "*") return true;
-  return raw.split(",").map((x) => norm(x)).filter(Boolean).includes(norm(email));
+  if (raw && raw.split(",").map(norm).filter(Boolean).includes(e)) return true;
+  const m = await getMember(env, e);
+  return !!m && m.status === "approved";
+}
+
+export function isAdmin(env, email) {
+  const raw = (env.ADMINS || "").trim();
+  if (!raw) return false;
+  return raw.split(",").map(norm).filter(Boolean).includes(norm(email));
 }
 
 export function json(obj, status, extra) {
@@ -100,4 +138,15 @@ export function need(env) {
     return json({ error: "server_setup", msg: "AUTH_SECRET 환경변수가 없습니다." }, 500);
   }
   return null;
+}
+
+// 관리자 요청인지 확인하고, 아니면 오류 응답을 돌려준다.
+export async function requireAdmin(request, env) {
+  const bad = need(env); if (bad) return { err: bad };
+  const s = await verifyToken(env.AUTH_SECRET, cookie(request, "tb_s"));
+  if (!s) return { err: json({ error: "login_required" }, 401) };
+  if (!isAdmin(env, s.email)) return { err: json({ error: "forbidden" }, 403) };
+  if (!env.TB) return { err: json({ error: "kv_missing",
+    msg: "회원 명부 저장소(KV)가 연결되지 않았습니다. setup11.sh 를 실행해 주세요." }, 500) };
+  return { email: s.email };
 }

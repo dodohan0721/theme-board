@@ -1,4 +1,5 @@
-import { codeFor, issue, norm, validEmail, isMember, json, need, SLOT_MS } from "../_lib.js";
+import { codeFor, issue, norm, validEmail, isMember, isAdmin, touchMember,
+         json, need, SLOT_MS } from "../_lib.js";
 
 // 인증번호를 확인하고 로그인 증표를 쿠키로 심는다.
 // 직전 시간칸도 인정하므로 실제 유효시간은 5~10분이다.
@@ -17,9 +18,13 @@ export async function onRequestPost({ request, env }) {
   const b = await codeFor(env.AUTH_SECRET, email, now - 1);
   if (code !== a && code !== b) return json({ error: "wrong_code" }, 401);
 
+  // 인증을 마친 사람을 명부에 남긴다(처음이면 '승인 대기').
+  await touchMember(env, email);
+
   const tok = await issue(env.AUTH_SECRET, email, 30);
   return json(
-    { ok: true, email, paid: isMember(env, email), pay_url: env.PAY_URL || "" },
+    { ok: true, email, paid: await isMember(env, email),
+      admin: isAdmin(env, email), pay_url: env.PAY_URL || "" },
     200,
     { "Set-Cookie": `tb_s=${tok}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000` }
   );

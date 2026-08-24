@@ -35,7 +35,7 @@ export async function onRequestPost({ request, env }) {
     return json({ ok: true, sent: true });
   }
 
-  const dev = env.DEV_SHOW_CODE === "1" && isMember(env, email);
+  const dev = env.DEV_SHOW_CODE === "1" && (await isMember(env, email));
   return json({
     ok: true, sent: false,
     dev_code: dev ? code : undefined,

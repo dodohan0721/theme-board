@@ -13,7 +13,7 @@ export async function onRequest(ctx) {
 
   const s = await verifyToken(env.AUTH_SECRET, cookie(request, "tb_s"));
   if (!s) return json({ error: "login_required" }, 401);
-  if (!isMember(env, s.email)) {
+  if (!(await isMember(env, s.email))) {
     return json({ error: "payment_required", email: s.email,
                   pay_url: env.PAY_URL || "" }, 402);
   }

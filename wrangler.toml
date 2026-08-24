@@ -1,0 +1,16 @@
+# Cloudflare Pages 설정
+#
+# KV(회원 명부)를 붙이기 위한 파일입니다.
+# id 는 setup11.sh 가 KV 를 만들면서 채워 넣습니다.
+#
+# ※ 이 파일이 있으면 배포할 때 폴더를 따로 적지 않습니다.
+#      npx wrangler pages deploy          (O)
+#      npx wrangler pages deploy web      (X — 오류)
+
+name = "theme-board"
+pages_build_output_dir = "web"
+compatibility_date = "2026-08-01"
+
+[[kv_namespaces]]
+binding = "TB"
+id = "b881c8a14890472cbea38c446275d532"

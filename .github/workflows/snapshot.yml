@@ -72,7 +72,7 @@ jobs:
             python3 export_snapshot.py --cycles 2 --detail 60 --ai --ai-top 30 \
               || echo "!! 스냅샷 실패 — 다음 회차로 넘어감"
 
-            npx --yes wrangler@latest pages deploy web \
+            npx --yes wrangler@latest pages deploy \
               --project-name theme-board --branch main --commit-dirty=true \
               || echo "!! 배포 실패 — 다음 회차로 넘어감"
 
