@@ -55,9 +55,9 @@ print(m.group(2) if m else re.sub(r"\s*#.*$","",v).strip())
 T="$(getval CLOUDFLARE_API_TOKEN)"; [ -n "$T" ] && export CLOUDFLARE_API_TOKEN="$T"
 A="$(getval CLOUDFLARE_ACCOUNT_ID)"; [ -n "$A" ] && export CLOUDFLARE_ACCOUNT_ID="$A"
 
-ADMIN="${1:-}"
+ADMIN="${1:-}"                      # 쉼표로 여러 명 지정 가능
 [ -z "$ADMIN" ] && ADMIN="$(git config user.email 2>/dev/null)"
-[ -z "$ADMIN" ] && { err "관리자 이메일을 못 정했습니다.  bash setup11.sh 내메일@x.com"; exit 1; }
+[ -z "$ADMIN" ] && { err "관리자 이메일을 못 정했습니다.  bash setup11.sh 내메일@x.com[,고객메일@y.com]"; exit 1; }
 SEED="${2:-}"
 ok "관리자  $ADMIN"
 [ -n "$SEED" ] && ok "미리 승인  $SEED"
@@ -65,30 +65,51 @@ ok "관리자  $ADMIN"
 # ── KV ────────────────────────────────────────────────────────────────────
 step "[2/6] 회원 명부 저장소(KV)"
 KVID="$(grep -m1 -E '^\s*id\s*=' wrangler.toml 2>/dev/null | sed -E 's/.*"(.*)".*/\1/')"
-if [ -n "$KVID" ] && [ "$KVID" != "KV_ID_HERE" ]; then
-  ok "이미 연결됨  ($KVID)"
-else
+
+# ① 이미 만들어 둔 것이 있으면 그대로 쓴다.
+#    같은 이름으로 두 번 만들면 "already exists" 오류가 난다.
+if [ -z "$KVID" ] || [ "$KVID" = "KV_ID_HERE" ]; then
+  echo "  기존 저장소 확인 …"
+  KVID="$($W kv namespace list 2>/dev/null | python3 -c '
+import sys, json
+raw = sys.stdin.read()
+i, j = raw.find("["), raw.rfind("]")
+if i < 0 or j < 0: sys.exit()
+try: arr = json.loads(raw[i:j+1])
+except Exception: sys.exit()
+for x in arr:
+    if str(x.get("title", "")).strip().endswith("TB"):
+        print(x.get("id", "")); break
+' 2>/dev/null)"
+  [ -n "$KVID" ] && ok "이미 있는 TB 를 그대로 씁니다  ($KVID)"
+fi
+
+# ② 그래도 없으면 새로 만든다
+if [ -z "$KVID" ] || [ "$KVID" = "KV_ID_HERE" ]; then
   echo "  만드는 중 …"
   OUT="$($W kv namespace create TB 2>&1)"
   KVID="$(echo "$OUT" | grep -oE '[0-9a-f]{32}' | head -1)"
   if [ -z "$KVID" ]; then
-    err "KV 생성 실패"
+    err "KV 준비 실패"
     echo "$OUT" | tail -12
     echo
-    echo "  대시보드에서 직접 만드셔도 됩니다:"
-    echo "    dash.cloudflare.com → Storage & Databases → KV → Create → 이름 TB"
-    echo "    만든 뒤 wrangler.toml 의 KV_ID_HERE 자리에 id 를 붙여넣고 다시 실행해 주세요."
+    echo "  대시보드에서 직접 확인하셔도 됩니다:"
+    echo "    dash.cloudflare.com → Storage & Databases → KV"
+    echo "    TB 옆의 ID 를 복사해 wrangler.toml 의 KV_ID_HERE 자리에 넣고 다시 실행해 주세요."
     exit 1
   fi
-  python3 - "$KVID" <<'PY'
+  ok "생성 완료  ($KVID)"
+fi
+
+# ③ wrangler.toml 에 연결
+python3 - "$KVID" <<'PY'
 import sys, re
 kid = sys.argv[1]
 s = open("wrangler.toml", encoding="utf-8").read()
 s = re.sub(r'id\s*=\s*"[^"]*"', f'id = "{kid}"', s, count=1)
 open("wrangler.toml", "w", encoding="utf-8").write(s)
 PY
-  ok "생성 완료  ($KVID)"
-fi
+ok "wrangler.toml 연결  ($KVID)"
 
 # ── 관리자 · 고정 계정 ────────────────────────────────────────────────────
 step "[3/6] 관리자 지정"
@@ -115,7 +136,8 @@ print(json.dumps({'email':sys.argv[1],'status':'approved','created':int(sys.argv
   $W kv key put --namespace-id="$KVID" --remote "m:$e" "$v" >/dev/null 2>&1 \
     && ok "$e  승인 상태로 등록" || warn "$e  등록 실패 (관리자 화면에서 승인하시면 됩니다)"
 }
-seed_one "$ADMIN"
+IFS=',' read -ra ADM <<< "$ADMIN"
+for e in "${ADM[@]}"; do seed_one "$e"; done
 if [ -n "$SEED" ]; then
   IFS=',' read -ra ARR <<< "$SEED"
   for e in "${ARR[@]}"; do seed_one "$e"; done
