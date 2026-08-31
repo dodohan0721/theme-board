@@ -44,7 +44,8 @@ for mk, label in MARKETS:
 
     out = r.get("output") or []
     if str(r.get("rt_cd")) != "0" or not out:
-        print(f"  {R}✗{N} {label:12s} {(r.get('msg1') or '응답 없음').strip()[:44]}")
+        print(f"  {R}✗{N} {label:12s} rt_cd={r.get('rt_cd')} {r.get('msg_cd','')} "
+              f"{(r.get('msg1') or '응답 없음').strip()[:40]}")
         res[("rank", mk)] = False; continue
 
     top = out[:3]
@@ -70,7 +71,8 @@ for mk, label in MARKETS:
 
     out = r.get("output") or []
     if str(r.get("rt_cd")) != "0" or not out:
-        print(f"  {R}✗{N} {label:12s} {(r.get('msg1') or '응답 없음').strip()[:44]}")
+        print(f"  {R}✗{N} {label:12s} rt_cd={r.get('rt_cd')} {r.get('msg_cd','')} "
+              f"{(r.get('msg1') or '응답 없음').strip()[:40]}")
         res[("flu", mk)] = False; continue
 
     names = " · ".join(f"{x.get('hts_kor_isnm','?')[:8]}({float(x.get('prdy_ctrt') or 0):+.1f}%)"
@@ -82,25 +84,63 @@ for mk, label in MARKETS:
 print("\n" + "=" * 76)
 un_ok = res.get(("rank", "UN")) and res.get(("flu", "UN"))
 nx_ok = res.get(("rank", "NX")) and res.get(("flu", "NX"))
+j_ok  = res.get(("rank", "J"))  and res.get(("flu", "J"))
+
+hm = int(time.strftime("%H%M"))
+in_hours = 900 <= hm <= 1520 and time.localtime().tm_wday < 5
+
+after = 1530 <= hm <= 2000 and time.localtime().tm_wday < 5   # NXT 애프터마켓
 
 if un_ok:
+    if after and not j_ok:
+        print(f"""
+  {G}✓ 통합(UN) 이 시간외에도 살아 있습니다. 이게 최선의 결과입니다.{N}
+
+    지금 {time.strftime('%H:%M')} 은 KRX 가 닫히고 NXT 만 도는 시간입니다.
+    KRX(J) 는 응답하지 않는데 통합(UN) 은 값을 주고 있으니,
+    {B}통합 순위가 곧 NXT 시간외 흐름{N}이라는 뜻입니다.
+    화면을 나눌 필요 없이 그대로 20:00 까지 갱신하면 됩니다.
+
+    다음:  python3 fix12.py
+""")
+    else:
+        print(f"""
+  {G}✓ 통합(UN) 으로 전부 바꿀 수 있습니다.{N}
+
+    거래대금이 KRX + NXT 합산이 되어 {B}테마 순위가 실제 자금 흐름과 맞습니다{N}.
+    15:30 이후에는 KRX 가 멈추고 NXT 만 움직이므로
+    통합값이 그대로 {B}시간외 흐름{N}이 됩니다.
+
+    다음:  python3 fix12.py
+""")
+elif not j_ok and not nx_ok:
+    print(f"""
+  {Y}· 판정 불가 — 어느 거래소로도 응답이 없습니다.{N}
+
+    KRX(J) 는 매일 쓰고 있는 호출입니다. 그것마저 안 된다는 것은
+    {B}권한 문제가 아니라 지금 시각의 문제{N}라는 뜻입니다.
+    한투 순위분석 API 는 종목 현재가와 달리 장 시간에만 응답합니다.
+
+    지금 {time.strftime('%H:%M')} · {'정규장' if in_hours else ('NXT 시간외' if after else '장 시간 아님')}
+    평일 09:00~15:20 (정규장) 또는 15:30~20:00 (NXT) 사이에 다시 돌려 주세요.
+""")
+elif False:
     print(f"""
   {G}✓ 통합(UN) 으로 전부 바꿀 수 있습니다.{N}
 
     그러면 두 가지가 한 번에 해결됩니다.
       · 거래대금이 KRX + NXT 합산이 되어 {B}테마 순위가 실제 자금 흐름과 맞습니다{N}
-        (지금은 삼성전자 기준 44,882억만 보고 있고, 실제는 80,228억입니다)
       · 15:30 이후에는 KRX 가 멈추고 NXT 만 움직이므로
-        통합값이 그대로 {B}시간외 흐름{N}이 됩니다 — 탭을 나눌 필요가 없습니다
+        통합값이 그대로 {B}시간외 흐름{N}이 됩니다 — 화면을 나눌 필요가 없습니다
 
-    다음:  python3 fix12.py  →  bash setup12.sh
+    다음:  python3 fix12.py
 """)
 elif nx_ok:
     print(f"""
-  {Y}· 통합(UN) 은 순위에서 막혀 있고, NXT(NX) 단독은 됩니다.{N}
+  {Y}· 통합(UN) 은 막혀 있고, NXT(NX) 단독은 됩니다.{N}
 
-    이 경우엔 정규장/시간외를 화면에서 나누는 방식으로 가야 합니다.
-    이 결과를 그대로 알려주세요. 그 구조로 다시 짜드리겠습니다.
+    정규장/시간외를 화면에서 나누는 방식으로 가야 합니다.
+    이 결과를 그대로 알려주세요.
 """)
 else:
     print(f"""

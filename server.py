@@ -65,6 +65,22 @@ def load_config():
 
 CFG = load_config()
 
+# ── 거래소 구분 ────────────────────────────────────────────────────────────
+#   J  = KRX 정규장만
+#   NX = NXT(대체거래소) 만
+#   UN = 통합 — KRX + NXT 합산  ← 기본값
+#
+# NXT 가 대형주 거래의 상당 부분을 가져가므로, KRX 만 보면 거래대금이
+# 실제의 절반 수준으로 잡힙니다. 그래서 통합을 기본으로 씁니다.
+# 15:30 이후에는 KRX 가 멈추고 NXT 만 움직이므로,
+# 같은 값이 그대로 '시간외 흐름' 이 됩니다.
+#
+# 예전처럼 KRX 만 보려면  KIS_MARKET=J  로 두세요.
+MKT = (os.environ.get("KIS_MARKET") or CFG.get("KIS_MARKET") or "UN").strip().upper()
+if MKT not in ("J", "NX", "UN"):
+    MKT = "UN"
+
+
 def need(k):
     v = CFG.get(k)
     if not v:
@@ -153,7 +169,7 @@ def kis_volume_rank(market="0000", blng="3"):
     """FID_BLNG_CLS_CODE  0:평균거래량 1:거래증가율 2:평균거래회전율 3:거래금액순 4:거래금액회전율
        FID_INPUT_ISCD     0000:전체 0001:코스피 1001:코스닥"""
     r = kis_get("/uapi/domestic-stock/v1/quotations/volume-rank", "FHPST01710", {
-        "FID_COND_MRKT_DIV_CODE": "J", "FID_COND_SCR_DIV_CODE": "20171",
+        "FID_COND_MRKT_DIV_CODE": MKT, "FID_COND_SCR_DIV_CODE": "20171",
         "FID_INPUT_ISCD": market, "FID_DIV_CLS_CODE": "0",
         "FID_BLNG_CLS_CODE": blng,
         "FID_TRGT_CLS_CODE": "111111111", "FID_TRGT_EXLS_CLS_CODE": "0000000000",
@@ -183,7 +199,7 @@ def kis_volume_rank(market="0000", blng="3"):
 def kis_fluct_rank(market="0000", updown="0"):
     """updown 0:상승률 1:하락률"""
     r = kis_get("/uapi/domestic-stock/v1/ranking/fluctuation", "FHPST01700", {
-        "fid_cond_mrkt_div_code": "J", "fid_cond_scr_div_code": "20170",
+        "fid_cond_mrkt_div_code": MKT, "fid_cond_scr_div_code": "20170",
         "fid_input_iscd": market, "fid_rank_sort_cls_code": updown,
         "fid_input_cnt_1": "0", "fid_prc_cls_code": "0",
         "fid_input_price_1": "", "fid_input_price_2": "",
@@ -207,7 +223,7 @@ def kis_price(code):
     if hit and time.time() - hit[0] < 45:
         return hit[1]
     r = kis_get("/uapi/domestic-stock/v1/quotations/inquire-price", "FHKST01010100",
-                {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": code})
+                {"FID_COND_MRKT_DIV_CODE": MKT, "FID_INPUT_ISCD": code})
     o = r.get("output") or {}
     d = {
         "code": code, "name": o.get("bstp_kor_isnm", ""),

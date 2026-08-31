@@ -195,7 +195,8 @@ function viewHome(){
   const age=Math.round((Date.now()-new Date(D.ts.replace(' ','T')+'+09:00').getTime())/60000);
   $('view').innerHTML=`
   ${age>20?`<div class="stale">⏱ 이 화면은 <b>${D.ts}</b> 기준 스냅샷입니다 (약 ${age}분 전). 실시간 시세가 아닙니다.</div>`:''}
-  <div class="note">사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.
+  <div class="note">거래대금은 <b>KRX + NXT(대체거래소) 합산</b> 기준입니다.${afterHours()}
+  사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.
   테마 <b>${D.theme_total}개</b> 중 조건을 넘긴 <b>${D.themes.length}개</b>만 표시합니다${D.hidden?` (거래대금 ${minv}억 미만 ${D.hidden}개 숨김)`:''}.
   ${dupN?`<br><b style="color:var(--teal-d,#04868c)">구성 종목이 겹치는 테마 ${dupN}개를 접었습니다.</b> 같은 대형주를 공유하는 테마(예: S7·아이폰·IT대표주)가 화면을 다 차지하지 않도록, 성격이 다른 테마가 올라오게 정리한 것입니다.`:''}
   ${topN?`<br><b style="color:var(--teal-d,#04868c)">테마마다 거래대금 상위 ${topN}종목만으로 거래대금·등락률을 다시 계산했습니다.</b> 대형주가 섞여 희석되는 것을 막아, 그날 실제로 주도한 테마가 위로 올라옵니다.`:''}</div>
@@ -224,6 +225,16 @@ function viewHome(){
 }
 // 테마를 끌어올린 종목의 '상승 사유'를 테마 카드 대표 문장으로 쓴다.
 // 이미 판독해 둔 결과(details)를 재사용하므로 추가 호출이 없다.
+// 스냅샷 기준시각이 15:30 을 넘었으면 시간외(NXT) 구간임을 알린다.
+// 이때는 KRX 가 멈춰 있어 통합값의 변화가 곧 NXT 의 움직임이다.
+function afterHours(){
+  const ts=(D&&D.ts)||''; const hm=ts.slice(11,16).replace(':','');
+  if(!hm) return '';
+  const n=parseInt(hm,10);
+  if(n>=1530&&n<=2010)
+    return ` <b style="color:var(--teal-d,#04868c)">15:30 이후 — 정규장은 종가로 멈춰 있고, 지금 움직이는 것은 NXT 시간외(15:30~20:00)입니다.</b>`;
+  return '';
+}
 function themeHead(t){
   const H=RAW.heads||{};
   for(const c of (t.codes||[])){

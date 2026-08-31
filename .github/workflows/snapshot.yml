@@ -5,14 +5,19 @@ name: 테마보드 스냅샷 갱신
 # */15 같은 잦은 주기는 대부분 무시된다(실측: 하루 28회 예상 → 실제 5회).
 # 그래서 크론은 하루 몇 번만 쓰고, 실행된 작업 안에서 반복한다.
 #
-#   08:45 시작 → 루프 → (13:55 새 작업이 이어받음) → 15:50 종료
-#   11:00 · 14:00 은 앞 작업이 누락됐을 때를 위한 예비 트리거
+#   08:45 시작 → 루프 → (13:55 · 17:00 새 작업이 이어받음) → 20:00 종료
+#   11:00 은 앞 작업이 누락됐을 때를 위한 예비 트리거
+#
+# 20:00 까지 도는 이유: 15:30~20:00 은 대체거래소(NXT) 애프터마켓이라
+# 통합 시세가 계속 움직인다. 한 작업의 최대 실행시간이 6시간이므로
+# 세 번에 나눠 이어받는다.
 # ──────────────────────────────────────────────────────────────────────────
 on:
   schedule:
     - cron: "45 23 * * 0-4"    # KST 08:45  개장 전 시작
     - cron: "0 2 * * 1-5"      # KST 11:00  예비
     - cron: "55 4 * * 1-5"     # KST 13:55  후반 이어받기
+    - cron: "0 8 * * 1-5"      # KST 17:00  시간외(NXT) 이어받기
   workflow_dispatch:
     inputs:
       interval:
@@ -22,7 +27,7 @@ on:
       until:
         description: "종료 시각 HHMM (KST)"
         required: false
-        default: "1550"
+        default: "2000"
 
 # 새 작업이 뜨면 이전 작업을 끊고 이어받는다
 concurrency:
@@ -61,7 +66,7 @@ jobs:
           CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           INTERVAL: ${{ github.event.inputs.interval || '600' }}
-          UNTIL:    ${{ github.event.inputs.until    || '1550' }}
+          UNTIL:    ${{ github.event.inputs.until    || '2000' }}
         run: |
           echo "간격 ${INTERVAL}초 · ${UNTIL}(KST) 까지 · 시작 $(date '+%F %T')"
           n=0
