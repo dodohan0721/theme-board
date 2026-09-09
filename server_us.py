@@ -20,7 +20,7 @@ import server as S            # 토큰 · RATE · kis_get · CACHE · need 재�
 EXCD = {"NAS": "나스닥", "NYS": "뉴욕", "AMS": "아멕스"}
 
 # 거래량조건 0:전체 1:1백주↑ 2:1천주↑ 3:1만주↑ 4:10만주↑ 5:100만주↑
-VOL_RANG = os.environ.get("US_VOL_RANG", "2")
+VOL_RANG = os.environ.get("US_VOL_RANG", "0")   # 0:전체 — 필터를 걸면 종목이 크게 줄어든다
 
 _ind_lock = threading.Lock()
 
@@ -236,6 +236,8 @@ def build(excds=("NAS", "NYS", "AMS"), min_value=5.0, verbose=True):
         if verbose:
             print(f"  [{EXCD.get(ex, ex)}] 업종 {len(inds)}개")
         for ind in inds:
+            if ind['icod'] in ('000', '0'):   # '전체' 는 업종이 아니라 집계
+                continue
             try:
                 rows = industry_stocks(ex, ind["icod"])
             except Exception as e:
