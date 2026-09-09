@@ -1,0 +1,109 @@
+name: 해외 테마보드 갱신
+
+# 미국 정규장
+#   서머타임  UTC 13:30~20:00  (KST 22:30~05:00)
+#   표준시    UTC 14:30~21:00  (KST 23:30~06:00)
+# UTC 13:35 에 시작해 20:55 UTC 까지 루프를 돌며 두 경우를 모두 덮는다.
+on:
+  schedule:
+    - cron: "35 13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      interval:
+        description: "갱신 간격(초)"
+        default: "1800"
+      until:
+        description: "종료 시각 (UTC HHMM)"
+        default: "2055"
+      ai:
+        description: "AI 상승사유 판독 (요금 발생)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: snapshot-us
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 460
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: config.py 생성
+        run: |
+          cat > config.py <<'EOF'
+          KIS_APP_KEY    = "${{ secrets.KIS_APP_KEY }}"
+          KIS_APP_SECRET = "${{ secrets.KIS_APP_SECRET }}"
+          KIS_ENV        = "real"
+          DART_API_KEY   = "${{ secrets.DART_API_KEY }}"
+          NAVER_CLIENT_ID     = "${{ secrets.NAVER_CLIENT_ID }}"
+          NAVER_CLIENT_SECRET = "${{ secrets.NAVER_CLIENT_SECRET }}"
+          ANTHROPIC_API_KEY   = "${{ secrets.ANTHROPIC_API_KEY }}"
+          EOF
+
+      - name: ARK 테마 갱신
+        continue-on-error: true
+        run: python3 fetch_themes_us.py
+
+      # ── 중요 ────────────────────────────────────────────────────────────
+      # Cloudflare Pages 배포는 web/ 폴더를 통째로 올린다.
+      # 저장소의 web/data.json 은 오래된 것이고 web/priv/ 는 gitignore 라 아예 없다.
+      # 그대로 배포하면 국내 보드가 옛 데이터로 되돌아가고 회원 상세가 사라진다.
+      # 그래서 루프 시작 전에 국내 스냅샷을 한 번 돌려 두 파일을 되살린다.
+      # (AI 판독은 국내 워크플로가 장중에 이미 하므로 여기선 하지 않는다)
+      - name: 국내 스냅샷 1회 — 배포 시 국내 보드가 되돌아가지 않도록
+        continue-on-error: true
+        run: python3 export_snapshot.py --cycles 1 --detail 60
+
+      - name: 해외 루프 (스냅샷 → 상세 → 배포)
+        env:
+          CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          INTERVAL: ${{ github.event.inputs.interval || '1800' }}
+          UNTIL:    ${{ github.event.inputs.until    || '2055' }}
+          USE_AI:   ${{ github.event.inputs.ai       || 'false' }}
+        run: |
+          echo "간격 ${INTERVAL}초 · ${UNTIL}(UTC) 까지 · AI=${USE_AI} · 시작 $(date -u '+%F %T')"
+          n=0
+          while : ; do
+            n=$((n+1))
+            echo "════════ ${n}회차  $(date -u '+%F %T') UTC ════════"
+
+            python3 export_snapshot_us.py --excd NAS,NYS,AMS --min-value 5 \
+              || echo "!! 해외 스냅샷 실패 — 다음 회차로"
+
+            if [ "$USE_AI" = "true" ]; then
+              python3 export_detail_us.py --ai --top 60 --min-rate 2 || echo "!! 상세(AI) 실패"
+            else
+              python3 export_detail_us.py --top 80 || echo "!! 상세 실패"
+            fi
+
+            npx --yes wrangler@latest pages deploy \
+              --project-name theme-board --branch main --commit-dirty=true \
+              || echo "!! 배포 실패 — 다음 회차로"
+
+            NOW=$(date -u +%H%M)
+            if [ "$NOW" -ge "$UNTIL" ]; then
+              echo "종료 시각(${UNTIL} UTC) 도달 — ${n}회 갱신하고 마칩니다"
+              break
+            fi
+            echo "다음 갱신까지 ${INTERVAL}초 대기 …"
+            sleep "$INTERVAL"
+          done
+
+      - name: ARK 테마 변동분 커밋
+        if: always()
+        continue-on-error: true
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add themes_us.json
+          git diff --cached --quiet || git commit -m "ARK 테마 갱신 $(date -u +'%Y-%m-%d')"
+          git pull --rebase --autostash || true
+          git push || true

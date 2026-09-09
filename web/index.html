@@ -115,11 +115,20 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--teal-l)}
 
 .stale{background:#fffbea;border:1px solid #f5e6b8;color:#8a6d1f;border-radius:10px;padding:9px 13px;font-size:12.5px;margin-bottom:12px}
 </style>
+<style>
+.mktsw{display:inline-flex;gap:0;margin-right:10px;border:1px solid var(--teal,#2a8f8a);border-radius:9px;overflow:hidden}
+.mktsw button{border:0;border-radius:0;background:#fff;color:#5a6472;font-weight:800;font-size:14px;padding:7px 15px;cursor:pointer}
+.mktsw button.on{background:var(--teal,#2a8f8a);color:#fff}
+</style>
 </head>
 <body>
 <div class="appbar"><div class="in">
   <div class="logo">테마보드<small>KIS + DART + NAVER</small></div>
   <nav class="gnb">
+    <span class="mktsw">
+      <button class="on" data-m="kr" onclick="setMkt('kr')">국내</button>
+      <button data-m="us" onclick="setMkt('us')">해외</button>
+    </span>
     <button class="on" data-k="home" onclick="go('home')">마켓</button>
     <button data-k="rank" onclick="go('rank')">랭킹</button>
     <a href="guide.html" style="padding:7px 14px;border-radius:8px;font-size:14px;font-weight:700;color:var(--teal-d);text-decoration:none;border:1px solid var(--teal);margin-left:4px">📖 화면 보는 법</a>
@@ -142,7 +151,11 @@ const nf=n=>(n==null?'-':Number(n).toLocaleString('ko-KR'));
 const pct=r=>(r>0?'+':'')+Number(r).toFixed(2)+'%';
 const cls=r=>r>0?'up':(r<0?'dn':'flat');
 const arw=r=>r>0?'▲':(r<0?'▼':'-');
-const vfmt=v=>v==null?'-':(v>=10000?(v/10000).toFixed(1).replace(/\.0$/,'')+'조':nf(v)+'억');
+let MKT='kr';
+const vfmt=v=>v==null?'-':(MKT==='us'
+  ? (v>=1000?(v/1000).toFixed(1).replace(/\.0$/,'')+'B$':nf(Math.round(v))+'M$')
+  : (v>=10000?(v/10000).toFixed(1).replace(/\.0$/,'')+'조':nf(v)+'억'));
+const vv=v=>v==null?'-':(MKT==='us'?nf(Math.round(v))+'M$':nf(v)+'억');
 let RAW=null, D=null, cur='home', sortKey='value', minv=300, topN=0, wgt='cap', compact=false, dedup=true, dupN=0;
 let DETAIL=null, ME=null;
 
@@ -170,7 +183,7 @@ function applyFilter(){
 }
 async function load(){
   try{
-    const r=await fetch('data.json?t='+Date.now());
+    const r=await fetch((MKT==='us'?'data_us.json':'data.json')+'?t='+Date.now());
     RAW=await r.json(); applyFilter(); checkMe();
     const age=(Date.now()-new Date(RAW.ts.replace(' ','T')+'+09:00').getTime())/60000;
     $('dot').className='dot'+(age>90?' err':'');
@@ -179,8 +192,15 @@ async function load(){
     render();
   }catch(e){
     $('dot').className='dot err'; $('stat').textContent='로딩 실패';
-    $('view').innerHTML=`<div class="err">data.json 을 불러오지 못했습니다.\n\n${e.message}</div>`;
+    $('view').innerHTML=`<div class="err">${MKT==='us'?'data_us.json':'data.json'} 을 불러오지 못했습니다.\n\n${e.message}</div>`;
   }
+}
+function setMkt(m){
+  if(MKT===m) return;
+  MKT=m; minv=(m==='us'?5:300); RAW=null; D=null;
+  document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===m));
+  $('view').innerHTML='<div class="load">데이터를 불러오는 중입니다…</div>';
+  load();
 }
 function go(k){cur=k;document.querySelectorAll('[data-k]').forEach(b=>b.classList.toggle('on',b.dataset.k===k));render();}
 function render(){ if(!D)return; cur==='home'?viewHome():viewRank(); }
@@ -195,9 +215,12 @@ function viewHome(){
   const age=Math.round((Date.now()-new Date(D.ts.replace(' ','T')+'+09:00').getTime())/60000);
   $('view').innerHTML=`
   ${age>20?`<div class="stale">⏱ 이 화면은 <b>${D.ts}</b> 기준 스냅샷입니다 (약 ${age}분 전). 실시간 시세가 아닙니다.</div>`:''}
-  <div class="note">거래대금은 <b>KRX + NXT(대체거래소) 합산</b> 기준입니다.${afterHours()}
-  사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.
-  테마 <b>${D.theme_total}개</b> 중 조건을 넘긴 <b>${D.themes.length}개</b>만 표시합니다${D.hidden?` (거래대금 ${minv}억 미만 ${D.hidden}개 숨김)`:''}.
+  <div class="note">${MKT==='us'
+    ? `미국 <b>나스닥·뉴욕·아멕스</b> 기준입니다. 시세는 <b>실시간(0분 지연)</b>이며 거래대금 단위는 <b>백만달러</b>입니다.${usHours()}
+       조회된 <b>${D.scanned}종목</b>을 업종·테마별로 묶었습니다.`
+    : `거래대금은 <b>KRX + NXT(대체거래소) 합산</b> 기준입니다.${afterHours()}
+       사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.`}
+  테마 <b>${D.theme_total}개</b> 중 조건을 넘긴 <b>${D.themes.length}개</b>만 표시합니다${D.hidden?` (거래대금 ${MKT==='us'?minv+'M$':minv+'억'} 미만 ${D.hidden}개 숨김)`:''}.
   ${dupN?`<br><b style="color:var(--teal-d,#04868c)">구성 종목이 겹치는 테마 ${dupN}개를 접었습니다.</b> 같은 대형주를 공유하는 테마(예: S7·아이폰·IT대표주)가 화면을 다 차지하지 않도록, 성격이 다른 테마가 올라오게 정리한 것입니다.`:''}
   ${topN?`<br><b style="color:var(--teal-d,#04868c)">테마마다 거래대금 상위 ${topN}종목만으로 거래대금·등락률을 다시 계산했습니다.</b> 대형주가 섞여 희석되는 것을 막아, 그날 실제로 주도한 테마가 위로 올라옵니다.`:''}</div>
   <div class="bar"><div class="seg">
@@ -208,7 +231,9 @@ function viewHome(){
   <div class="seg"><button class="${dedup?'on':''}" onclick="dedup=!dedup;viewHome()">${dedup?'✓ 중복 테마 정리':'중복 테마 정리'}</button></div>
   <select style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--ink2);border:1px solid var(--line);border-radius:9px;background:#fff"
     onchange="minv=+this.value;applyFilter();viewHome()">
-    ${[[0,'테마 거래대금 전체'],[100,'100억 이상'],[300,'300억 이상'],[500,'500억 이상'],[1000,'1,000억 이상'],[3000,'3,000억 이상']]
+    ${(MKT==='us'
+        ? [[0,'테마 거래대금 전체'],[5,'5M$ 이상'],[20,'20M$ 이상'],[50,'50M$ 이상'],[200,'200M$ 이상'],[1000,'1B$ 이상']]
+        : [[0,'테마 거래대금 전체'],[100,'100억 이상'],[300,'300억 이상'],[500,'500억 이상'],[1000,'1,000억 이상'],[3000,'3,000억 이상']])
       .map(([v,l])=>`<option value="${v}" ${minv===v?'selected':''}>${l}</option>`).join('')}
   </select>
   <select style="padding:7px 10px;font-size:13px;font-weight:700;color:var(--ink2);border:1px solid var(--line);border-radius:9px;background:#fff"
@@ -227,6 +252,12 @@ function viewHome(){
 // 이미 판독해 둔 결과(details)를 재사용하므로 추가 호출이 없다.
 // 스냅샷 기준시각이 15:30 을 넘었으면 시간외(NXT) 구간임을 알린다.
 // 이때는 KRX 가 멈춰 있어 통합값의 변화가 곧 NXT 의 움직임이다.
+function usHours(){
+  const h=new Date().getUTCHours()*60+new Date().getUTCMinutes();
+  const open=13*60+30, close=20*60;           // 미국 정규장(UTC, 서머타임 기준)
+  if(h>=open&&h<close) return ` <b style="color:var(--teal-d,#04868c)">지금 미국 정규장이 열려 있습니다.</b>`;
+  return ` <b>미국장 마감 기준입니다.</b> 정규장은 한국시간 밤 22:30~05:00(서머타임) 입니다.`;
+}
 function afterHours(){
   const ts=(D&&D.ts)||''; const hm=ts.slice(11,16).replace(':','');
   if(!hm) return '';
@@ -289,7 +320,7 @@ function rowHTML(c,maxV){
   const w=Math.min(50,Math.abs(s.value)/maxV*50);
   return `<div class="row ${hot}" onclick="openStock('${c}')">
     <div class="r1"><span class="nm">${s.name}</span><span class="pc ${cls(s.rate)} num">${arw(s.rate)}${Math.abs(s.rate).toFixed(2)}%</span></div>
-    <div class="r2"><span class="${cls(s.rate)} num" style="font-weight:700">${nf(s.price)}</span><span class="vl num">${nf(s.value)}억</span></div>
+    <div class="r2"><span class="${cls(s.rate)} num" style="font-weight:700">${nf(s.price)}</span><span class="vl num">${vv(s.value)}</span></div>
     <div class="gauge"><u></u><i class="${s.rate<0?'d':''}" style="${s.rate<0?`right:50%;left:auto;width:${w}%`:`width:${w}%`}"></i></div></div>`;
 }
 function viewRank(){
@@ -315,7 +346,7 @@ function viewRank(){
       <td class="r num"><b>${nf(s.price)}</b></td>
       <td class="r num ${cls(s.rate)}">${s.diff>0?'+':''}${nf(s.diff)}</td>
       <td class="r num ${cls(s.rate)}"><b>${arw(s.rate)}${Math.abs(s.rate).toFixed(2)}%</b></td>
-      <td class="r num">${nf(s.value)}억</td><td class="r num">${vfmt(s.cap)}</td>
+      <td class="r num">${vv(s.value)}</td><td class="r num">${vfmt(s.cap)}</td>
       <td class="r num">${s.per?s.per.toFixed(1):'-'}</td></tr>`}).join('')}
   </tbody></table></div></div>`;
 }
@@ -391,10 +422,12 @@ async function checkMe(){
   else b.textContent = '로그인';
   const ab=$('adminbtn'); if(ab) ab.style.display = (ME&&ME.admin) ? '' : 'none';
 }
+let DETAIL_MKT=null;
 async function needDetail(){
-  if(DETAIL) return true;
+  if(DETAIL && DETAIL_MKT===MKT) return true;
+  DETAIL=null; DETAIL_MKT=MKT;
   let r;
-  try{ r=await fetch('priv/detail.json?t='+Date.now()); }
+  try{ r=await fetch((MKT==='us'?'priv/detail_us.json':'priv/detail.json')+'?t='+Date.now()); }
   catch(e){ lockSheet('상세를 불러오지 못했습니다', e.message); return false; }
   if(r.status===401){ openAuth(); return false; }
   if(r.status===402){ let j={}; try{ j=await r.json(); }catch(e){} payWall(j); return false; }
@@ -492,7 +525,7 @@ async function openStock(code){
   if(!j){ return openDt(`<div class="dhead"><div style="font-size:21px;font-weight:900">${s.name}</div>
     <button class="x" onclick="closeDt()">✕</button></div>
     <div class="dbody"><div class="blk"><h4>${nf(s.price)}원 ${pct(s.rate)}</h4>
-    <p>거래대금 ${nf(s.value)}억 · 시가총액 ${vfmt(s.cap)} · PER ${s.per?s.per.toFixed(1):'-'}</p>
+    <p>거래대금 ${vv(s.value)}${MKT==='us'?'':` · 시가총액 ${vfmt(s.cap)} · PER ${s.per?s.per.toFixed(1):'-'}`}</p>
     <div class="disc">이 종목은 상세 스냅샷(상위 종목 한정)에 포함되지 않아 뉴스·재무를 표시할 수 없습니다.</div></div></div>`); }
   const f=j.financial, R=j.reason;
   openDt(`
@@ -500,24 +533,25 @@ async function openStock(code){
     <div style="font-size:11.5px;color:var(--ink3);font-weight:700">${code}${s.market?' · '+s.market:''}</div>
     <div style="display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-top:2px">
       <div style="font-size:21px;font-weight:900">${s.name}</div>
-      <div class="${cls(s.rate)} num" style="font-size:21px;font-weight:900">${nf(s.price)}</div>
+      <div class="${cls(s.rate)} num" style="font-size:21px;font-weight:900">${MKT==='us'?'$'+nf(s.price):nf(s.price)}</div>
       <div class="${cls(s.rate)} num" style="font-size:14.5px;font-weight:800">${arw(s.rate)}${nf(Math.abs(s.diff))} (${pct(s.rate)})</div></div>
     <div style="margin-top:6px">${ts.map(t=>`<span class="chip" onclick="openTheme('${t.id}')">${t.name}</span>`).join('')||'<span class="chip g">테마 미분류</span>'}</div>
     <button class="x" onclick="closeDt()">✕</button></div>
   <div class="dbody">
     <div class="blk" style="border-left:3px solid var(--teal)">
       <h4>⚡ 이 종목이 오른 이유
-        ${R&&R.verified?'<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:#e6f7ee;color:#0f7a45;margin-left:6px">✓ 기사 본문 확인</span>':''}</h4>
+        ${R&&R.verified?'<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:#e6f7ee;color:#0f7a45;margin-left:6px">✓ 기사 본문 확인</span>':(R&&R.source==='headline'?'<span style="font-size:10.5px;font-weight:800;padding:2px 7px;border-radius:4px;background:#fff4e5;color:#a15c00;margin-left:6px">뉴스 제목 기준</span>':'')}</h4>
       ${R&&R.headline?`<p style="font-size:15px;font-weight:800;color:var(--ink);margin:0 0 10px">${R.headline}</p>`:''}
       ${R&&R.status==='ok'?`
         ${R.evidences.map((e,i)=>`<div class="ev"><div class="n">${i+1}</div><div>
           <div class="t">${e.text||e.title}</div>
-          <div class="m">${e.time} · ${e.text?`<span style="color:var(--ink3)">${e.title.slice(0,34)}</span> · `:''}<a href="${e.url}" target="_blank" rel="noopener">원문 →</a></div></div></div>`).join('')}
+          <div class="m">${e.time} · ${e.text?`<span style="color:var(--ink3)">${e.title.slice(0,34)}</span>`:''}${e.url?` · <a href="${e.url}" target="_blank" rel="noopener">원문 →</a>`:''}</div></div></div>`).join('')}
         ${R.theme_context?`<div style="margin-top:9px;padding:9px 11px;background:#f5fbfb;border-radius:8px;font-size:12.8px;color:var(--ink2)">📊 ${R.theme_context}</div>`:''}
-        <div class="disc">${R.verified?`AI가 기사 <b>본문 ${R.read||0}건</b>을 읽고 정리한 내용입니다. 사실 확인을 위해 <b>원문을 함께 확인</b>해 주세요.`:'뉴스는 자동 수집·선별한 것으로 <b>주가 변동의 원인임을 보장하지 않습니다.</b>'} 투자 권유가 아닙니다.</div>`
+        <div class="disc">${R.verified?`AI가 기사 <b>본문 ${R.read||0}건</b>을 읽고 정리한 내용입니다. 사실 확인을 위해 <b>원문을 함께 확인</b>해 주세요.`:(R.source==='headline'?`AI가 <b>뉴스 제목 ${R.read||0}건</b>만 읽고 정리한 내용입니다. 본문을 확인하지 않았으므로 <b>국내 종목보다 근거가 약합니다.</b>`:'뉴스는 자동 수집·선별한 것으로 <b>주가 변동의 원인임을 보장하지 않습니다.</b>')} 투자 권유가 아닙니다.</div>`
       :`<p>${(R&&R.msg)||'뚜렷한 공시·뉴스가 확인되지 않습니다.'}</p>
         ${R&&R.theme_context?`<div style="padding:9px 11px;background:#f5fbfb;border-radius:8px;font-size:12.8px">📊 ${R.theme_context}</div>`:''}`}
     </div>
+    ${MKT==='us'?'':`
     <div class="blk">
       <h4>💰 재무 ${f?`<span style="font-size:11px;font-weight:600;color:var(--ink3)">기준 ${f.period} · DART</span>`:''}</h4>
       ${f?`<div class="fin">
@@ -530,10 +564,10 @@ async function openStock(code){
       ${(f.opm<0||f.net<0)?`<div class="disc" style="background:#fef2f2;border-color:#fbd5d1;color:#b42318">⚠ 최근 보고서 기준 <b>${f.opm<0&&f.net<0?'영업적자·순손실':(f.opm<0?'영업적자':'순손실')}</b>입니다.</div>`:''}
       <div class="disc">DART 확정 공시 기준이라 실시간이 아닙니다.</div>`
       :`<p style="color:var(--ink3)">DART에서 재무를 가져오지 못했습니다.</p>`}
-    </div>
+    </div>`}
     ${(j.news||[]).length?`<div class="blk"><h4>📰 관련 뉴스</h4>
       ${j.news.map(n=>`<div class="ev"><div class="n" style="background:var(--ink3)">·</div><div>
-        <div class="t">${n.title}</div><div class="m">${n.time} · <a href="${n.url}" target="_blank" rel="noopener">원문 →</a></div></div></div>`).join('')}</div>`:''}
+        <div class="t">${n.title}</div><div class="m">${n.time}${n.source?' · '+n.source:''}${n.url?` · <a href="${n.url}" target="_blank" rel="noopener">원문 →</a>`:''}</div></div></div>`).join('')}</div>`:''}
   </div>`);
 }
 
@@ -559,7 +593,7 @@ function openTheme(id){
       <tbody>${rows.map(s=>`<tr onclick="openStock('${s.code}')">
         <td><b>${s.name}</b></td><td class="r num">${nf(s.price)}</td>
         <td class="r num ${cls(s.rate)}"><b>${pct(s.rate)}</b></td>
-        <td class="r num">${nf(s.value)}억</td><td class="r num">${vfmt(s.cap)}</td>
+        <td class="r num">${vv(s.value)}</td><td class="r num">${vfmt(s.cap)}</td>
         <td class="r num">${s.per?s.per.toFixed(1):'-'}</td></tr>`).join('')}</tbody></table></div></div>
     ${quiet.length?`<div class="blk"><h4>😴 오늘 조용한 구성 종목</h4>
       <p style="font-size:12.5px">거래대금이 낮아 상위권에 없는 종목입니다. <b>순환매 후발주 후보</b>로 볼 수 있습니다.</p>
