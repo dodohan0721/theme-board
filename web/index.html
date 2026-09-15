@@ -37,6 +37,31 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .seg button{padding:7px 14px;font-size:13px;font-weight:700;color:var(--ink2);border-right:1px solid var(--line2)}
 .seg button:last-child{border-right:none}
 .seg button.on{background:var(--teal);color:#fff}
+/* ── 시장 요약 스트립 ───────────────────────────────────────────────
+   레퍼런스(juicelab fintech)의 어법을 데이터 화면에 맞춰 옮긴 것.
+   가져온 것  : 테두리 없이 그림자로 띄우기 · 큰 모서리 · 핵심 숫자 하나만 크게
+                · 소수점 이하는 작고 흐리게 · 라벨은 작고 조용하게
+   안 가져온 것: 무채색 통일(등락은 색이 정보다) · 과한 여백(밀도가 이 화면의 값) */
+.mkt{display:flex;gap:10px;margin-bottom:13px;flex-wrap:wrap}
+.mkt .box{
+  background:#fff;border:0;border-radius:18px;padding:15px 20px 14px;
+  box-shadow:0 1px 2px rgba(20,30,40,.04), 0 6px 20px rgba(20,30,40,.055);
+  min-width:190px;flex:0 1 auto;position:relative;overflow:hidden;
+}
+.mkt .box::after{content:'';position:absolute;inset:0 0 auto;height:2px;
+  background:linear-gradient(90deg,transparent,var(--teal-l),transparent);opacity:.9}
+.mkt .lb{font-size:11px;font-weight:800;color:var(--ink3);letter-spacing:.2px;
+  display:flex;align-items:center;gap:5px;margin-bottom:7px}
+.mkt .dotlive{width:5px;height:5px;border-radius:50%;background:var(--teal);
+  box-shadow:0 0 0 3px var(--teal-l)}
+.mkt .dotoff{width:5px;height:5px;border-radius:50%;background:#c9d0d6}
+.mkt .px{font-size:27px;font-weight:900;letter-spacing:-1.1px;line-height:1.05;
+  font-variant-numeric:tabular-nums}
+.mkt .px .dec{font-size:16px;font-weight:800;opacity:.42;letter-spacing:-.3px}
+.mkt .sub{margin-top:6px;font-size:12.5px;font-weight:800;font-variant-numeric:tabular-nums}
+.mkt .meta{margin-top:3px;font-size:10.5px;color:var(--ink3);font-weight:600}
+@media (max-width:640px){ .mkt .box{flex:1 1 100%;min-width:0} }
+
 .note{background:#fff;border:1px dashed #c6ccd2;border-radius:12px;padding:11px 14px;font-size:12.5px;color:var(--ink2);margin-bottom:13px;line-height:1.7}
 .note b{color:var(--ink)}
 .err{background:#fff1f0;border:1px solid #fbc5c0;color:#b42318;border-radius:12px;padding:14px 16px;font-size:13px;line-height:1.8;white-space:pre-wrap;font-family:ui-monospace,Menlo,monospace}
@@ -88,6 +113,117 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--teal-l)}
 .chip.g{background:var(--band);color:var(--ink3)}
 .badge{display:inline-block;font-size:10px;font-weight:800;padding:1px 5px;border-radius:4px;margin-left:4px}
 .badge.hi{background:#fee2e0;color:var(--up)}.badge.warn{background:#fef3c7;color:#92400e}
+/* ══════════════════════════════════════════════════════════════════
+   톤 이식 — juicelab fintech 레퍼런스
+   이 블록만 지우면 원래 디자인으로 돌아갑니다.
+
+   옮긴 것
+     · 바탕을 청록빛에서 중성 회색으로 — 카드의 흰색이 떠 보이게
+     · 테두리를 걷어내고 그림자로 띄움 (선이 많으면 답답해 보임)
+     · 모서리 14 → 18, 안쪽 여백 조금 늘림
+     · 등락률 숫자를 카드에서 가장 크게
+     · 표의 격자선을 최대한 지움
+
+   안 옮긴 것 — 이 화면에 맞지 않아서
+     · 무채색 통일: 빨강·파랑은 장식이 아니라 정보다
+     · 큰 여백: 테마 200개를 보는 화면이라 밀도가 값이다
+     · 테마 이름의 청록 알약: 브랜드 색이고 식별 기준이다
+   ══════════════════════════════════════════════════════════════════ */
+:root{
+  --page:#f4f6f7; --appbar:#ffffff;
+  --line:#e8edef; --line2:#f1f4f6; --band:#f6f8f9;
+  --gauge-track:#eceff1;
+}
+.appbar{border-bottom:1px solid #edf1f3;box-shadow:0 1px 14px rgba(20,30,40,.035)}
+.wrap{padding-top:18px}
+
+/* ── 강조를 색면에서 크기·굵기·위치로 옮긴다 ──────────────────────
+   레퍼런스도 강조는 한다. 방식이 다를 뿐이다.
+   색면으로 깔지 않고, 요소 하나에 색을 찍고 크기로 위계를 만든다.
+     노란 배경면  →  왼쪽 막대 + 종목명 굵게 + 등락률 한 단계 크게
+     아주 강한 급등  →  숫자 옆 점 하나
+   색면을 걷어내면 오히려 어느 것이 더 센지 한눈에 갈린다. */
+/* 행 — 빨강은 등락률 숫자 하나에만. 막대·점·게이지에서 색을 뺀다 */
+.row.hot,.row.warm{background:transparent}
+.row{padding:9px 11px 11px}
+.row.hot::before,.row.warm::before{display:none}
+.row.hot:hover,.row.warm:hover{background:#f6f8f9}
+
+/* 타이포 위계 — 등락률이 행에서 유일하게 큰 것 */
+.row .nm{font-size:13.5px;font-weight:700;color:var(--ink2);letter-spacing:-.2px}
+.row.hot .nm{color:var(--ink);font-weight:800}
+.row .pc{font-size:15px;font-weight:800;letter-spacing:-.5px}
+.row.hot .pc{font-size:19px;font-weight:900;letter-spacing:-.8px}
+.row.warm .pc{font-size:16.5px}
+.row .r2{margin-top:3px;font-size:11.5px;color:var(--ink3);font-weight:600}
+.row .vl{font-size:11.5px;color:var(--ink3)}
+
+/* 게이지 — 얇은 회색 트랙, 색은 채운 부분에만 아주 옅게 */
+.gauge{height:3px;border-radius:2px;background:#eef1f3;margin-top:7px}
+.gauge i{border-radius:2px;opacity:.55}
+.gauge u{display:none}
+
+/* 테마 이름 — 레퍼런스의 "Available balance" 자리. 작고 조용한 라벨 */
+.cpill{background:transparent;color:var(--ink3);font-size:12px;font-weight:800;
+  letter-spacing:.1px;padding:0;border-radius:0;flex:none;order:1;
+  display:flex;align-items:center;gap:6px;max-width:100%}
+.cpill::before{content:'';width:5px;height:5px;border-radius:50%;
+  background:var(--teal);flex:none}
+.card:hover .cpill{color:var(--teal-d)}
+
+.seg,.note,.panel,.card{border:0}
+.seg{border-radius:12px;box-shadow:0 1px 2px rgba(20,30,40,.05),0 2px 8px rgba(20,30,40,.04)}
+.seg button{border-right:1px solid #eef2f4}
+.note{border-radius:16px;padding:13px 17px;
+  box-shadow:0 1px 2px rgba(20,30,40,.04),0 4px 16px rgba(20,30,40,.045)}
+.panel{border-radius:18px;
+  box-shadow:0 1px 2px rgba(20,30,40,.04),0 6px 20px rgba(20,30,40,.05)}
+
+.cards{gap:14px}
+.card{border-radius:18px;
+  box-shadow:0 1px 2px rgba(20,30,40,.04),0 6px 18px rgba(20,30,40,.05);
+  transition:box-shadow .18s ease,transform .18s ease}
+.card:hover{transform:translateY(-2px);
+  box-shadow:0 2px 6px rgba(20,30,40,.06),0 16px 36px rgba(20,30,40,.10)}
+
+/* 카드 머리 — 테마명은 작고 조용하게, 등락률만 크게 (레퍼런스의 잔고 자리) */
+.chead{padding:16px 16px 4px;gap:0;flex-direction:column;align-items:flex-start}
+.cpct{background:transparent;border:0;padding:0;min-width:0;
+  font-size:31px;font-weight:900;letter-spacing:-1.4px;line-height:1.05;
+  justify-content:flex-start;order:2;margin-top:6px}
+.cval{background:transparent;border:0;padding:0;order:3;
+  font-size:12px;font-weight:700;color:var(--ink3);margin-top:2px}
+.cmeta{padding:2px 16px 10px;font-size:11px}
+.chl{margin:0 14px 10px;border-radius:11px;padding:9px 12px;background:#f6f8f9;font-size:12px}
+
+.rows{padding:0 10px 8px}
+.row{border-radius:12px;padding:8px 11px 10px;margin-bottom:5px}
+.row:hover{outline:0;background:#f4f8f9}
+.row.hot:hover{background:var(--up-bg)}
+.row.warm:hover{background:var(--up-soft)}
+.gauge{border-radius:6px;height:8px}
+.cmore{border-top:1px solid #f1f4f6;padding:11px}
+
+th{background:#fff;border-bottom:1px solid var(--line);
+  font-size:11.5px;letter-spacing:.1px;color:var(--ink3);padding:11px}
+td{border-bottom:1px solid #f4f7f8;padding:10px 11px}
+tbody tr:hover{background:#f4f8f9}
+
+/* 선택 상태 — 청록 색면 대신 잉크 채움 하나로 (레퍼런스의 검정 CTA 어법) */
+.gnb button.on,.seg button.on,.mktsw button.on,.mktsw button.on:hover{
+  background:var(--ink);color:#fff}
+.gnb button:not(.on):hover,.seg button:not(.on):hover{background:#f2f5f6}
+.cmore:hover{background:#f4f7f8}
+tbody tr:hover{background:#f6f8f9}
+.chip{background:#f1f5f6;color:var(--ink2);border-radius:7px;padding:3px 8px;font-weight:700}
+.chip.g{background:#f6f8f9;color:var(--ink3)}
+.badge{border-radius:5px}
+.badge.hi{background:#fdecea;color:var(--up)}
+
+/* 게이지 — 누런 트랙을 회색으로 */
+.gauge{background:#eef1f3}
+.gauge u{background:#b9c2c8;opacity:1;width:1px}
+
 .detail{position:fixed;inset:0;z-index:90;display:none}.detail.on{display:block}
 .detail .bg{position:absolute;inset:0;background:rgba(15,25,30,.42)}
 .detail .sheet{position:absolute;right:0;top:0;bottom:0;width:min(780px,100%);background:var(--page);overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.2)}
@@ -116,10 +252,21 @@ tbody tr{cursor:pointer}tbody tr:hover{background:var(--teal-l)}
 .stale{background:#fffbea;border:1px solid #f5e6b8;color:#8a6d1f;border-radius:10px;padding:9px 13px;font-size:12.5px;margin-bottom:12px}
 </style>
 <style>
-.mktsw{display:inline-flex;gap:0;margin-right:10px;border:1px solid var(--teal,#2a8f8a);border-radius:9px;overflow:hidden}
-.mktsw button{border:0;border-radius:0;background:#fff;color:#5a6472;font-weight:800;font-size:14px;padding:7px 15px;cursor:pointer}
-.mktsw button.on{background:var(--teal,#2a8f8a);color:#fff}
+/* 국내 / 해외 전환 — 위 톤에 맞춰 테두리 대신 그림자 */
+.mktsw{display:inline-flex;margin-right:10px;border:0;border-radius:12px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(20,30,40,.05),0 2px 8px rgba(20,30,40,.04)}
+.mktsw button{border:0;border-radius:0;background:#fff;color:#5a6472;
+  font-weight:800;font-size:14px;padding:7px 16px;cursor:pointer;transition:.15s}
+.mktsw button:hover{background:#f4f8f9}
+.mktsw button.on,.mktsw button.on:hover{background:var(--teal,#05b1b8);color:#fff}
 </style>
+<link rel="stylesheet" href="fintech.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Instrument+Serif&family=Noto+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="rooton.css">
+<link rel="stylesheet" href="rooton-theme.css">
+<link rel="stylesheet" href="rooton-motion.css">
 </head>
 <body>
 <div class="appbar"><div class="in">
@@ -217,6 +364,39 @@ async function load(){
   }
 }
 
+
+// ── 야간선물 ────────────────────────────────────────────────────────
+// 분봉 REST 는 정규장만 주므로(확인 완료) 웹소켓으로 받은 값을
+// futures_ngt_ws.py 가 web/futures_ngt.json 에 떨궈 둔 것을 읽는다.
+let NGT=null;
+async function loadNgt(){
+  try{ const r=await fetch('futures_ngt.json?t='+Date.now());
+       if(r.ok) NGT=await r.json(); }catch(e){ NGT=null; }
+}
+function ngtLive(){            // 야간장 18:00~06:00
+  const h=new Date().getHours(); return h>=18||h<6;
+}
+function bigNum(v){            // 정수부는 크게, 소수부는 작고 흐리게
+  const s=Number(v).toFixed(2).split('.');
+  return `${nf(+s[0])}<span class="dec">.${s[1]}</span>`;
+}
+function mktStrip(){
+  if(MKT!=='kr') return '';
+  const live=ngtLive();
+  if(!NGT) return live
+    ? `<div class="mkt"><div class="box"><div class="lb"><i class="dotoff"></i>코스피200 야간선물</div>
+       <div class="px" style="color:var(--ink3);font-size:19px">수신 대기</div>
+       <div class="meta">야간장 중 · 아직 체결이 들어오지 않았습니다</div></div></div>` : '';
+  const age=Math.round((Date.now()-new Date(NGT.ts.replace(' ','T')+'+09:00').getTime())/60000);
+  return `<div class="mkt"><div class="box">
+    <div class="lb"><i class="${live?'dotlive':'dotoff'}"></i>코스피200 야간선물</div>
+    <div class="px ${cls(NGT.rate)}">${bigNum(NGT.last)}</div>
+    <div class="sub ${cls(NGT.rate)}">${arw(NGT.rate)}${nf(Math.abs(NGT.diff).toFixed(2))} (${pct(NGT.rate)})</div>
+    <div class="meta">${NGT.code} · ${NGT.time} 체결 · 거래량 ${nf(NGT.volume)}${
+      live?'':` · ${age>=60?Math.round(age/60)+'시간':age+'분'} 전 마감값`}</div>
+  </div></div>`;
+}
+
 function setMkt(m){
   if(MKT===m) return;
   MKT=m; minv=(m==='us'?5:300); RAW=null; D=null;
@@ -227,6 +407,18 @@ function setMkt(m){
 function go(k){cur=k;document.querySelectorAll('[data-k]').forEach(b=>b.classList.toggle('on',b.dataset.k===k));render();}
 function render(){ if(!D)return; cur==='home'?viewHome():viewRank(); }
 
+function boardHeading(){
+  if(cur==='home'){
+    const total=Object.values(RAW.stocks||{}).reduce((sum,s)=>sum+(Number(s.value)||0),0);
+    return `<section class="market-overview"><div class="overview-label"><p>${MKT==='us'?'US MARKET':'KR MARKET'}</p><h1>테마 마켓</h1><span>${MKT==='us'?'NASDAQ · NYSE · AMEX':'KRX · NXT'}</span></div><div class="market-balance"><span>조회 종목 거래대금</span><div>${displayValue(total)}</div></div><div class="overview-meta"><span><b>${nf(D.scanned)}</b> 조회 종목</span><span><b>${nf(D.themes.length)}</b> 조건 충족 테마</span></div></section>`;
+  }
+  return `<div class="board-heading"><div><p class="eyebrow">${MKT==='us'?'US MARKET':'KR MARKET'} <span>/</span> ${cur==='rank'?'RANKING':'OVERVIEW'}</p><h1>${cur==='rank'?'거래대금 랭킹':'오늘의 테마 흐름'}</h1><p>${MKT==='us'?'NASDAQ · NYSE · AMEX':'KRX · NXT 통합 시세'}</p></div><div class="board-count"><div><span>조회 종목</span><b>${nf(D.scanned)}</b></div><div><span>조건 충족 테마</span><b>${nf(D.themes.length)}</b></div></div></div>`;
+}
+
+function displayValue(value){
+  return vfmt(value).replace(/([\d,.]+)(.*)/,(_,n,u)=>`${n.replace(/(\.\d+)/,'<span class="fraction">$1</span>')}<span class="unit">${u}</span>`);
+}
+
 function viewHome(){
   let ts=[...D.themes];
   if(sortKey==='value')ts.sort((a,b)=>b.value-a.value);
@@ -236,15 +428,17 @@ function viewHome(){
   if(dedup){ const _r=dedupThemes(ts); dupN=ts.length-_r.length; ts=_r; }
   const age=Math.round((Date.now()-new Date(D.ts.replace(' ','T')+'+09:00').getTime())/60000);
   $('view').innerHTML=`
+  ${boardHeading()}
+  ${mktStrip()}
   ${age>20?`<div class="stale">⏱ 이 화면은 <b>${D.ts}</b> 기준 스냅샷입니다 (약 ${age}분 전). 실시간 시세가 아닙니다.</div>`:''}
-  <div class="note">${MKT==='us'
+  <details class="market-note"><summary>시장 집계 기준 · ${MKT==='us'?'NASDAQ / NYSE / AMEX':'KRX + NXT'}${dupN?` · 중복 테마 ${dupN}개 정리`:''}</summary><div class="note">${MKT==='us'
     ? `미국 <b>나스닥·뉴욕·아멕스</b> 기준입니다. 시세는 <b>실시간(0분 지연)</b>이며 거래대금 단위는 <b>백만달러</b>입니다.${usHours()}
        조회된 <b>${D.scanned}종목</b>을 업종·테마별로 묶었습니다.`
     : `거래대금은 <b>KRX + NXT(대체거래소) 합산</b> 기준입니다.${afterHours()}
        사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.`}
   테마 <b>${D.theme_total}개</b> 중 조건을 넘긴 <b>${D.themes.length}개</b>만 표시합니다${D.hidden?` (거래대금 ${MKT==='us'?minv+'M$':minv+'억'} 미만 ${D.hidden}개 숨김)`:''}.
   ${dupN?`<br><b style="color:var(--teal-d,#04868c)">구성 종목이 겹치는 테마 ${dupN}개를 접었습니다.</b> 같은 대형주를 공유하는 테마(예: S7·아이폰·IT대표주)가 화면을 다 차지하지 않도록, 성격이 다른 테마가 올라오게 정리한 것입니다.`:''}
-  ${topN?`<br><b style="color:var(--teal-d,#04868c)">테마마다 거래대금 상위 ${topN}종목만으로 거래대금·등락률을 다시 계산했습니다.</b> 대형주가 섞여 희석되는 것을 막아, 그날 실제로 주도한 테마가 위로 올라옵니다.`:''}</div>
+  ${topN?`<br><b style="color:var(--teal-d,#04868c)">테마마다 거래대금 상위 ${topN}종목만으로 거래대금·등락률을 다시 계산했습니다.</b> 대형주가 섞여 희석되는 것을 막아, 그날 실제로 주도한 테마가 위로 올라옵니다.`:''}</div></details>
   <div class="bar"><div class="seg">
     ${[['value','거래대금순'],['pct','등락률순'],['ratio','상승비율순']].map(([k,l])=>
       `<button class="${sortKey===k?'on':''}" onclick="sortKey='${k}';viewHome()">${l}</button>`).join('')}
@@ -326,7 +520,7 @@ function cardHTML(t){
   const maxV=Math.max(...t.codes.map(c=>D.stocks[c].value),1);
   return `<div class="card">
     <div class="chead"><div class="cpill" onclick="openTheme('${t.id}')">${t.name}</div>
-      <div class="cval num">${vfmt(t.value)}</div>
+      <div class="cval num"><span class="value-label">거래대금</span>${displayValue(t.value)}</div>
       <div class="cpct ${cls(t.pct)} num">${pct(t.pct)}</div></div>
     ${hd?`<div class="chl" title="${hd.headline}" onclick="openStock('${hd.code}')">
       <b>${hd.name}</b><span class="tx">${hd.headline}</span>${hd.verified?'<span class="ok">✓</span>':''}</div>`:''}
@@ -340,10 +534,10 @@ function rowHTML(c,maxV){
   const s=D.stocks[c];
   const hot=s.rate>=8?'hot':(s.rate>=3?'warm':'');
   const w=Math.min(50,Math.abs(s.value)/maxV*50);
-  return `<div class="row ${hot}" onclick="openStock('${c}')">
+  return `<div class="row ${hot}" onclick="openStock('${c}')"><span class="ticker-icon" aria-hidden="true">${s.name.slice(0,1)}</span><div class="row-content">
     <div class="r1"><span class="nm">${s.name}</span><span class="pc ${cls(s.rate)} num">${arw(s.rate)}${Math.abs(s.rate).toFixed(2)}%</span></div>
     <div class="r2"><span class="${cls(s.rate)} num" style="font-weight:700">${nf(s.price)}</span><span class="vl num">${vv(s.value)}</span></div>
-    <div class="gauge"><u></u><i class="${s.rate<0?'d':''}" style="${s.rate<0?`right:50%;left:auto;width:${w}%`:`width:${w}%`}"></i></div></div>`;
+    <div class="gauge"><u></u><i class="${s.rate<0?'d':''}" style="${s.rate<0?`right:50%;left:auto;width:${w}%`:`width:${w}%`}"></i></div></div></div>`;
 }
 function viewRank(){
   const codes=D.ranking.slice(0,60);
@@ -354,6 +548,7 @@ function viewRank(){
   const pal=['#05b1b8','#f0a02c','#7c5cd6','#2f9e5e','#e8322a','#3b82f6','#94a3b8'];
   const de=Object.entries(dist).sort((a,b)=>b[1]-a[1]);
   $('view').innerHTML=`
+  ${boardHeading()}
   <div class="note"><b>거래대금 상위 ${codes.length}종목</b>. 테마 컬럼으로 쏠림이 보입니다.</div>
   ${de.length?`<div style="display:flex;height:24px;border-radius:7px;overflow:hidden;margin-bottom:11px;border:1px solid var(--line)">
     ${de.map(([n,v],i)=>`<div style="width:${v/tot*100}%;background:${pal[i%pal.length]};color:#fff;font-size:10.5px;font-weight:800;display:flex;align-items:center;justify-content:center;white-space:nowrap;overflow:hidden">${v/tot>0.1?n:''}</div>`).join('')}</div>`:''}
@@ -625,5 +820,8 @@ function openTheme(id){
 load();
 setInterval(load, 180000);
 </script>
+<script src="rooton.js"></script>
+<script src="rooton-theme.js"></script>
+<script src="rooton-motion.js"></script>
 </body>
 </html>
