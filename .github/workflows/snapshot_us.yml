@@ -78,15 +78,22 @@ jobs:
             python3 export_snapshot_us.py --excd NAS,NYS,AMS --min-value 5 \
               || echo "!! 해외 스냅샷 실패 — 다음 회차로"
 
+            # Recover a valid peer/current snapshot before building member detail.
+            python3 sync_snapshots.py --market us
+
             if [ "$USE_AI" = "true" ]; then
               python3 export_detail_us.py --ai --top 60 --min-rate 2 || echo "!! 상세(AI) 실패"
             else
               python3 export_detail_us.py --top 80 || echo "!! 상세 실패"
             fi
 
-            npx --yes wrangler@latest pages deploy \
-              --project-name theme-board --branch main --commit-dirty=true \
-              || echo "!! 배포 실패 — 다음 회차로"
+            if python3 sync_snapshots.py --market us --require-details; then
+              npx --yes wrangler@latest pages deploy \
+                --project-name theme-board --branch main --commit-dirty=true \
+                || echo "!! 배포 실패 — 다음 회차로"
+            else
+              echo "!! 데이터 검증 실패 — 기존 운영 배포를 유지합니다"
+            fi
 
             NOW=$(date -u +%H%M)
             if [ "$NOW" -ge "$UNTIL" ]; then

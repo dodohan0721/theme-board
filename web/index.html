@@ -151,12 +151,12 @@ const nf=n=>(n==null?'-':Number(n).toLocaleString('ko-KR'));
 const pct=r=>(r>0?'+':'')+Number(r).toFixed(2)+'%';
 const cls=r=>r>0?'up':(r<0?'dn':'flat');
 const arw=r=>r>0?'▲':(r<0?'▼':'-');
-let MKT='kr';
+let MKT=new URLSearchParams(location.search).get('market')==='us'?'us':'kr';
 const vfmt=v=>v==null?'-':(MKT==='us'
   ? (v>=1000?(v/1000).toFixed(1).replace(/\.0$/,'')+'B$':nf(Math.round(v))+'M$')
   : (v>=10000?(v/10000).toFixed(1).replace(/\.0$/,'')+'조':nf(v)+'억'));
 const vv=v=>v==null?'-':(MKT==='us'?nf(Math.round(v))+'M$':nf(v)+'억');
-let RAW=null, D=null, cur='home', sortKey='value', minv=300, topN=0, wgt='cap', compact=false, dedup=true, dupN=0;
+let RAW=null, D=null, cur='home', sortKey='value', minv=(MKT==='us'?5:300), topN=0, wgt='cap', compact=false, dedup=true, dupN=0;
 let DETAIL=null, ME=null;
 
 // 테마를 '거래대금 상위 topN 종목'만으로 다시 계산한다.
@@ -181,20 +181,42 @@ function applyFilter(){
   D={...RAW, themes:keep, hidden:RAW.themes.length-keep.length,
      ranking:RAW.ranking.filter(c=>codes.has(c))};
 }
+let loadVersion=0;
+async function fetchMarketSnapshot(market){
+  const file=market==='us'?'data_us.json':'data.json';
+  for(const suffix of ['?t='+Date.now(),'']){
+    try{
+      const r=await fetch(file+suffix,{cache:'no-store'});
+      if(!r.ok)continue;
+      const data=await r.json();
+      if(!data||!Array.isArray(data.themes)||!Array.isArray(data.ranking)||
+         !data.stocks||typeof data.stocks!=='object'||!Object.keys(data.stocks).length||
+         typeof data.ts!=='string'||(market==='us'&&data.market!=='US')||
+         (market==='kr'&&data.market==='US'))continue;
+      return data;
+    }catch(_){}
+  }
+  throw new Error('snapshot_unavailable');
+}
 async function load(){
+  const market=MKT,version=++loadVersion;
   try{
-    const r=await fetch((MKT==='us'?'data_us.json':'data.json')+'?t='+Date.now());
-    RAW=await r.json(); applyFilter(); checkMe();
+    const data=await fetchMarketSnapshot(market);
+    if(version!==loadVersion||market!==MKT)return;
+    RAW=data; document.querySelectorAll('[data-m]').forEach(b=>b.classList.toggle('on',b.dataset.m===market)); applyFilter(); checkMe(); if(typeof loadNgt==='function')await loadNgt();
+    if(version!==loadVersion||market!==MKT)return;
     const age=(Date.now()-new Date(RAW.ts.replace(' ','T')+'+09:00').getTime())/60000;
     $('dot').className='dot'+(age>90?' err':'');
-    $('stat').textContent=`${RAW.ts} 기준 · 테마 ${RAW.themes.length} · 종목 ${RAW.scanned}`;
+    $('stat').textContent=`${RAW.ts} 기준 · 테마 ${RAW.themes.length} · 종목 ${RAW.scanned}${age>1440?' · 저장 데이터 (최신 수집 대기)':''}`;
     $('snapts').textContent=RAW.ts;
     render();
   }catch(e){
-    $('dot').className='dot err'; $('stat').textContent='로딩 실패';
-    $('view').innerHTML=`<div class="err">${MKT==='us'?'data_us.json':'data.json'} 을 불러오지 못했습니다.\n\n${e.message}</div>`;
+    if(version!==loadVersion||market!==MKT)return;
+    $('dot').className='dot err'; $('stat').textContent='데이터 연결 대기';
+    $('view').innerHTML=`<div class="err">${market==='us'?'해외주식':'국내주식'} 데이터를 아직 불러오지 못했습니다.<br>잠시 후 다시 시도해 주세요. 계속되면 데이터 갱신 상태를 확인해 주세요.<br><button type="button" onclick="load()" style="margin-top:14px;padding:8px 14px;cursor:pointer">다시 불러오기</button></div>`;
   }
 }
+
 function setMkt(m){
   if(MKT===m) return;
   MKT=m; minv=(m==='us'?5:300); RAW=null; D=null;
