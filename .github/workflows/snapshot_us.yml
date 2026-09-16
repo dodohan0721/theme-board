@@ -104,6 +104,7 @@ jobs:
             fi
 
             if python3 sync_snapshots.py --market us --require-details; then
+              python3 deployment/refresh_site.py || exit 1
               npx --yes wrangler@latest pages deploy \
                 --project-name theme-board --branch main --commit-dirty=true \
                 || echo "!! 배포 실패 — 다음 회차로"

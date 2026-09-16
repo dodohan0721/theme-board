@@ -1,0 +1,110 @@
+name: 미국 증시 브리핑 갱신
+on:
+  schedule:
+    - cron: '17 22,23 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      deploy_website:
+        description: '홈페이지 코드도 배포'
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+    paths:
+      - 'build_briefing.py'
+      - 'briefing_catalog.py'
+      - 'web/rooton-briefing.*'
+      - 'functions/api/briefing.js'
+      - '.github/workflows/briefing.yml'
+      - 'tests/test_briefing.py'
+permissions:
+  contents: read
+concurrency:
+  group: briefing-publish
+  cancel-in-progress: false
+jobs:
+  briefing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: briefing-${{ github.run_id }}
+          restore-keys: |
+            briefing-
+            tb-cache-
+      - name: 거래일·결측값·수익률 검증
+        run: |
+          python3 -m unittest discover -s tests -p test_briefing.py -v
+          node --test tests/briefing_api.test.mjs
+      - name: 시세·출처 검증 후 날짜별 브리핑 발행
+        env:
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          KIS_ENV: real
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -e
+          for attempt in 1 2 3; do
+            if python3 build_briefing.py --ai --publish; then
+              exit 0
+            fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            sleep 30
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: published-briefing
+          path: briefing-preview.json
+          retention-days: 14
+  website:
+    if: github.event_name == 'push' || inputs.deploy_website
+    needs: briefing
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: .cache
+          key: tb-briefing-${{ github.run_id }}
+          restore-keys: |
+            tb-cache-
+            tb-collector-
+      - name: 국내·해외 시세 및 회원 상세 보존 후 배포
+        env:
+          TZ: Asia/Seoul
+          KIS_APP_KEY: ${{ secrets.KIS_APP_KEY }}
+          KIS_APP_SECRET: ${{ secrets.KIS_APP_SECRET }}
+          KIS_ENV: real
+          DART_API_KEY: ${{ secrets.DART_API_KEY }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -e
+          python3 export_snapshot.py --cycles 1 --detail 60
+          python3 export_snapshot_us.py --excd NAS,NYS,AMS --min-value 5
+          python3 sync_snapshots.py --market both
+          python3 export_detail_us.py --top 80
+          python3 sync_snapshots.py --market both --require-details
+          npx --yes wrangler@4.131.2 pages deploy --project-name theme-board --branch main --commit-dirty=true

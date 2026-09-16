@@ -48,6 +48,7 @@
    const d=rows.map((r,i)=>((!i||(timed&&options.maxGapMs&&Number(r.time)-Number(rows[i-1].time)>options.maxGapMs))?'M':'L')+X(i).toFixed(2)+' '+Y(r.value).toFixed(2)).join(' ');
    markup+=(options.maxGapMs?'':'<path d="'+d+' L'+X(rows.length-1)+' '+(T+ih)+' L'+L+' '+(T+ih)+' Z" fill="url(#'+id+'fill)"/>')+'<path d="'+d+'" fill="none" stroke="url(#'+id+'line)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>';
   }
+  if(!isBar&&options.reference!=null&&Number.isFinite(Number(options.reference))){const ry=Y(Number(options.reference));markup+='<line x1="'+L+'" y1="'+ry+'" x2="'+(W-R)+'" y2="'+ry+'" stroke="'+line+'" stroke-dasharray="4 4" opacity=".7"/><text x="'+(W-R-3)+'" y="'+(ry-7)+'" text-anchor="end" fill="'+line+'">'+esc(fmt(Number(options.reference)))+'</text>';}
   const ticks=isBar?rows.map((_,i)=>i):[...new Set([0,Math.round((rows.length-1)*.25),Math.round((rows.length-1)*.5),Math.round((rows.length-1)*.75),rows.length-1])];
   ticks.forEach(i=>{markup+='<text x="'+X(i)+'" y="'+(H-9)+'" text-anchor="'+(!isBar&&i===0?'start':!isBar&&i===rows.length-1?'end':'middle')+'" fill="'+ink+'">'+esc(isBar&&W<480?(rows[i].shortLabel||rows[i].label||'').slice(0,3):(rows[i].shortLabel||rows[i].label||''))+'</text>';});
   markup+='<g class="rt-cross" opacity="0"><line class="rt-cross-line" y1="'+T+'" y2="'+(T+ih)+'" stroke="'+ink+'" stroke-dasharray="3 4"/><circle class="rt-halo" r="11" fill="'+line+'" opacity=".16"/><circle class="rt-dot" r="4.5" fill="'+line+'" stroke="#fff" stroke-width="1.8"/></g><rect class="rt-chart-hit" x="'+L+'" y="'+T+'" width="'+iw+'" height="'+ih+'" fill="transparent" tabindex="0" role="slider" aria-label="'+esc((options.label||'차트')+' · 좌우 방향키로 값 확인')+'" aria-valuemin="0" aria-valuemax="'+(rows.length-1)+'" aria-valuenow="'+(rows.length-1)+'"/></svg><div class="rt-chart-tip"></div><p class="rt-chart-note">'+esc(options.note||'마우스·터치 또는 방향키로 값 확인')+'</p>';
@@ -59,6 +60,7 @@
    tip.innerHTML='<span>'+esc(r.label||'')+'</span>'+esc(fmt(r.value));tip.classList.add('on');tip.style.left=Math.max(15,Math.min(85,x/W*100))+'%';
    hit.setAttribute('aria-valuenow',selected);hit.setAttribute('aria-valuetext',(r.label||'')+' '+fmt(r.value));
   }
+  hit.addEventListener('pointerdown',()=>hit.focus({preventScroll:true}));
   hit.addEventListener('pointermove',e=>{const point=svg.createSVGPoint();point.x=e.clientX;point.y=e.clientY;const x=point.matrixTransform(svg.getScreenCTM().inverse()).x;let nearest=0;rows.forEach((_,i)=>{if(Math.abs(X(i)-x)<Math.abs(X(nearest)-x))nearest=i;});show(nearest);});
   hit.addEventListener('pointerleave',()=>{if(document.activeElement!==hit){cross.setAttribute('opacity','0');tip.classList.remove('on');}});
   hit.addEventListener('focus',()=>show(selected));hit.addEventListener('blur',()=>{cross.setAttribute('opacity','0');tip.classList.remove('on');});
