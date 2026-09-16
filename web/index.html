@@ -328,6 +328,12 @@ function applyFilter(){
   D={...RAW, themes:keep, hidden:RAW.themes.length-keep.length,
      ranking:RAW.ranking.filter(c=>codes.has(c))};
 }
+function normalizeSnapshotTime(data,market){
+  const offset=market==='us'&&data.timezone!=='Asia/Seoul'?'+00:00':'+09:00';
+  const instant=Date.parse(data.ts.replace(' ','T')+offset);
+  if(!Number.isFinite(instant))throw new Error('snapshot_time_invalid');
+  return {...data,ts:new Date(instant+32400000).toISOString().slice(0,19).replace('T',' '),timezone:'Asia/Seoul'};
+}
 let loadVersion=0;
 async function fetchMarketSnapshot(market){
   const file=market==='us'?'data_us.json':'data.json';
@@ -340,7 +346,7 @@ async function fetchMarketSnapshot(market){
          !data.stocks||typeof data.stocks!=='object'||!Object.keys(data.stocks).length||
          typeof data.ts!=='string'||(market==='us'&&data.market!=='US')||
          (market==='kr'&&data.market==='US'))continue;
-      return data;
+      return normalizeSnapshotTime(data,market);
     }catch(_){}
   }
   throw new Error('snapshot_unavailable');
@@ -366,15 +372,20 @@ async function load(){
 
 
 // ── 야간선물 ────────────────────────────────────────────────────────
-// 분봉 REST 는 정규장만 주므로(확인 완료) 웹소켓으로 받은 값을
-// futures_ngt_ws.py 가 web/futures_ngt.json 에 떨궈 둔 것을 읽는다.
+// The collector stores observed night prices in KV, independently of site deployments.
 let NGT=null;
 async function loadNgt(){
-  try{ const r=await fetch('futures_ngt.json?t='+Date.now());
-       if(r.ok) NGT=await r.json(); }catch(e){ NGT=null; }
+  try{
+    const r=await fetch('api/futures?t='+Date.now(),{cache:'no-store'});
+    if(!r.ok)throw new Error('night_unavailable');
+    const data=await r.json();
+    if(!data||!Array.isArray(data.history))throw new Error('night_invalid');
+    NGT=data;
+  }catch(_){NGT={last:null,history:[],status:'error',configured:false};}
 }
-function ngtLive(){            // 야간장 18:00~06:00
-  const h=new Date().getHours(); return h>=18||h<6;
+function ngtLive(){
+  const d=new Date(),day=d.getUTCDay(),h=d.getUTCHours();
+  return day>=1&&day<=5&&h>=9&&h<21;
 }
 function bigNum(v){            // 정수부는 크게, 소수부는 작고 흐리게
   const s=Number(v).toFixed(2).split('.');
@@ -383,7 +394,7 @@ function bigNum(v){            // 정수부는 크게, 소수부는 작고 흐�
 function mktStrip(){
   if(MKT!=='kr') return '';
   const live=ngtLive();
-  if(!NGT) return live
+  if(!NGT||NGT.last==null) return live
     ? `<div class="mkt"><div class="box"><div class="lb"><i class="dotoff"></i>코스피200 야간선물</div>
        <div class="px" style="color:var(--ink3);font-size:19px">수신 대기</div>
        <div class="meta">야간장 중 · 아직 체결이 들어오지 않았습니다</div></div></div>` : '';

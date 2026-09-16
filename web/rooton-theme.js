@@ -26,17 +26,26 @@
   if(dedup){const filtered=dedupThemes(list);dupN=list.length-filtered.length;list=filtered;}
   return list;
  }
+ function nightMeta(){
+  const d=NGT||{},has=d.last!=null&&Number.isFinite(Number(d.last));
+  const labels={not_connected:'수집 연결 점검 필요',error:'수집 연결 점검 중',waiting:'첫 체결 수신 대기',stale:'수신 지연',closed:has?'야간장 종료':'야간장 개장 대기',receiving:'분 단위 갱신 중'};
+  const state=labels[d.status]||'수집 상태 확인 중';
+  return '<span class="rt-night-status">'+E(state)+'</span><br>'+
+   (has?'<strong class="'+cls(d.rate)+'">'+pct(d.rate)+'</strong> '+E(d.code)+' · '+E(d.ts)+' KST<br>':'')+
+   (has?'관측 '+(d.history||[]).length+'분 · 1분 단위 수신값':'평일 18:00~다음 날 06:00 · 한국 시간')+
+   (d.checked_at?'<br><small>수집기 확인 '+E(new Date(d.checked_at).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour12:false}))+'</small>':'');
+ }
  function hero(list){
   const night=MKT==='kr'&&heroMode==='night',total=Object.values(RAW.stocks||{}).reduce((s,r)=>s+(Number(r.value)||0),0);
   let value=night?(NGT?.last!=null?nf(NGT.last):'—'):displayValue(total);
   return '<section class="rt-hero"><div class="rt-hero-copy">'+(MKT==='kr'?'<div class="rt-hero-tabs"><button data-hero="themes" aria-pressed="'+!night+'">테마 거래대금</button><button data-hero="night" aria-pressed="'+night+'">야간선물</button></div>':'<p class="rt-eyebrow">GLOBAL MARKET</p>')+
-   '<h1>'+(night?'KOSPI200 야간선물':MKT==='us'?'해외 테마의 흐름':'오늘, 자금이 향하는 곳')+'</h1><div class="rt-number">'+value+'</div><div class="rt-hero-meta">'+(night?(NGT?'<strong class="'+cls(NGT.rate)+'">'+pct(NGT.rate)+'</strong> '+E(NGT.code)+' · '+E(NGT.ts)+' 기준':'체결 데이터 연결 대기'):'조회 종목 거래대금 · '+E(MKT==='us'?'NASDAQ · NYSE · AMEX':'KRX · NXT')+'<br><strong>'+nf(RAW.scanned)+'</strong> 종목 · <strong>'+nf(D.themes.length)+'</strong> 조건 충족 테마')+'</div></div><div id="rt-market-chart"></div></section>';
+   '<h1>'+(night?'KOSPI200 야간선물':MKT==='us'?'해외 테마의 흐름':'오늘, 자금이 향하는 곳')+'</h1><div class="rt-number">'+value+'</div><div class="rt-hero-meta">'+(night?nightMeta():'조회 종목 거래대금 · '+E(MKT==='us'?'NASDAQ · NYSE · AMEX':'KRX · NXT')+'<br><strong>'+nf(RAW.scanned)+'</strong> 종목 · <strong>'+nf(D.themes.length)+'</strong> 조건 충족 테마')+'</div></div><div id="rt-market-chart"></div></section>';
  }
  function drawHero(list){
   const host=document.getElementById('rt-market-chart');
   if(MKT==='kr'&&heroMode==='night'){
    const rows=(NGT?.history||[]).filter(p=>p.last!=null).map(p=>({label:p.time||p.ts?.slice(11,16),shortLabel:(p.time||p.ts?.slice(11,16)||'').slice(0,5),value:p.last,time:Date.parse(p.ts?.replace(' ','T')+'+09:00')}));
-   ui.chart(host,rows,{label:'KOSPI200 야간선물 체결 추이',format:v=>v.toFixed(2),axis:v=>v.toFixed(1),emptyTitle:NGT?'체결 시계열 수집 중':'야간선물 데이터 연결 대기',empty:'체결값이 누적되면 그래프가 표시됩니다. 수신하지 않은 시세는 그리지 않습니다.',note:'저장된 체결 기준 · 비연속 수집 구간이 포함될 수 있습니다'});
+   ui.chart(host,rows,{label:'KOSPI200 야간선물 체결 추이',format:v=>v.toFixed(2),axis:v=>v.toFixed(1),emptyTitle:NGT?.status==='closed'?'야간장 개장 대기':'야간선물 체결 수신 대기',empty:NGT?.status==='closed'?'평일 18:00부터 수신한 체결을 분 단위로 기록합니다.':'수집된 관측값이 두 개 이상 쌓이면 그래프가 표시됩니다.',note:'한국 시간 · 분 단위 관측값 · 수신하지 못한 구간은 비어 있습니다',maxGapMs:150000});
   }else{
    ui.chart(host,list.slice(0,6).map(t=>({label:t.name,shortLabel:t.name.length>7?t.name.slice(0,6)+'…':t.name,value:t.value})),{type:'bar',height:170,label:'상위 여섯 테마 거래대금 비교',format:v=>vfmt(v),axis:v=>MKT==='us'?vfmt(v):v>=1000?(v/10000).toFixed(v>=10000?1:2)+'조':nf(Math.round(v))+'억',note:'상위 6개 테마 · 구성 종목은 테마 간 중복될 수 있습니다'});
   }
@@ -78,5 +87,13 @@
  let timer;
  document.getElementById('rt-search').addEventListener('input',e=>{search=e.target.value;clearTimeout(timer);timer=setTimeout(()=>{if(cur!=='home')go('home');else viewHome();},120);});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('dt').classList.contains('on'))closeDt();});
+ let polling=false;
+ async function refreshNight(){
+  if(document.hidden||polling||MKT!=='kr')return;
+  polling=true;
+  try{await loadNgt();if(MKT==='kr'&&heroMode==='night'&&cur==='home'&&D)viewHome();}finally{polling=false;}
+ }
+ setInterval(refreshNight,30000);
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshNight();});
  if(D){applyFilter();render();}
 })();

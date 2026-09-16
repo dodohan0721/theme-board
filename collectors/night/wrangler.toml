@@ -1,0 +1,14 @@
+name = "rooton-night-collector"
+main = "worker.mjs"
+compatibility_date = "2026-09-16"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "TB"
+id = "b881c8a14890472cbea38c446275d532"
+
+[triggers]
+crons = ["* 9-20 * * MON-FRI", "0 21 * * MON-FRI"]
+
+[observability]
+enabled = true

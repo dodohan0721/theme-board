@@ -14,6 +14,7 @@
   해외주식-039  거래량급증       HHDFS76270000   /uapi/overseas-stock/v1/ranking/volume-surge
 """
 import os, re, json, time, threading
+from datetime import datetime, timezone, timedelta
 import server as S            # 토큰 · RATE · kis_get · CACHE · need 재사용
 
 # ── 거래소 ────────────────────────────────────────────────────────────────
@@ -303,7 +304,8 @@ def build(excds=("NAS", "NYS", "AMS"), min_value=5.0, verbose=True):
     ranking = [c for c, _ in sorted(stocks.items(), key=lambda kv: -kv[1]["value"])]
 
     return {
-        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "ts": datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M:%S"),
+        "timezone": "Asia/Seoul",
         "themes": themes,
         "stocks": stocks,
         "ranking": ranking,

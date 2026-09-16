@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from urllib.request import Request, urlopen
 
@@ -49,6 +49,11 @@ def fetch_snapshot(market):
             continue
     return None
 
+def snapshot_time(data, market):
+    at = datetime.strptime(data["ts"], "%Y-%m-%d %H:%M:%S")
+    offset = 0 if market == "us" and data.get("timezone") != "Asia/Seoul" else 9
+    return at.replace(tzinfo=timezone(timedelta(hours=offset))).timestamp()
+
 def sync_one(web, market, fetch=fetch_snapshot):
     path = web / NAMES[market]
     local = read_local(path, market)
@@ -56,7 +61,7 @@ def sync_one(web, market, fetch=fetch_snapshot):
     candidates = [d for d in (local, remote) if d is not None]
     if not candidates:
         raise ValueError(f"{NAMES[market]}: no valid snapshot; deployment stopped")
-    best = max(candidates, key=lambda d: d["ts"])
+    best = max(candidates, key=lambda d: snapshot_time(d, market))
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".json.tmp")
     temporary.write_text(json.dumps(best, ensure_ascii=False, separators=(",", ":")),

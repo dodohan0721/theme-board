@@ -3,10 +3,11 @@ name: 해외 테마보드 갱신
 # 미국 정규장
 #   서머타임  UTC 13:30~20:00  (KST 22:30~05:00)
 #   표준시    UTC 14:30~21:00  (KST 23:30~06:00)
-# UTC 13:35 에 시작해 20:55 UTC 까지 루프를 돌며 두 경우를 모두 덮는다.
+# UTC 13~20시 매시간 시작 기회를 두고 한 작업은 최대 110분 실행한다.
+# GitHub 예약 실행 지연은 가능하므로 화면에는 실제 데이터 시각을 표시한다.
 on:
   schedule:
-    - cron: "35 13 * * 1-5"
+    - cron: "35 13-20 * * 1-5"
   workflow_dispatch:
     inputs:
       interval:
@@ -22,20 +23,31 @@ on:
 
 concurrency:
   group: snapshot-us
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   snapshot:
     runs-on: ubuntu-latest
-    timeout-minutes: 460
+    timeout-minutes: 125
     steps:
       - uses: actions/checkout@v4
+      - name: 미국장 수집 시간 확인
+        id: window
+        run: |
+          NOW=$(date -u +%H%M)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || { [ "$NOW" -ge 1330 ] && [ "$NOW" -le 2100 ]; }; then
+            echo "open=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "open=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - uses: actions/setup-python@v5
+        if: steps.window.outputs.open == 'true'
         with:
           python-version: "3.11"
 
       - name: config.py 생성
+        if: steps.window.outputs.open == 'true'
         run: |
           cat > config.py <<'EOF'
           KIS_APP_KEY    = "${{ secrets.KIS_APP_KEY }}"
@@ -48,6 +60,7 @@ jobs:
           EOF
 
       - name: ARK 테마 갱신
+        if: steps.window.outputs.open == 'true'
         continue-on-error: true
         run: python3 fetch_themes_us.py
 
@@ -58,10 +71,12 @@ jobs:
       # 그래서 루프 시작 전에 국내 스냅샷을 한 번 돌려 두 파일을 되살린다.
       # (AI 판독은 국내 워크플로가 장중에 이미 하므로 여기선 하지 않는다)
       - name: 국내 스냅샷 1회 — 배포 시 국내 보드가 되돌아가지 않도록
+        if: steps.window.outputs.open == 'true'
         continue-on-error: true
         run: python3 export_snapshot.py --cycles 1 --detail 60
 
       - name: 해외 루프 (스냅샷 → 상세 → 배포)
+        if: steps.window.outputs.open == 'true'
         env:
           CLOUDFLARE_API_TOKEN:  ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -70,6 +85,7 @@ jobs:
           USE_AI:   ${{ github.event.inputs.ai       || 'false' }}
         run: |
           echo "간격 ${INTERVAL}초 · ${UNTIL}(UTC) 까지 · AI=${USE_AI} · 시작 $(date -u '+%F %T')"
+          DEADLINE=$(($(date -u +%s) + 6600))
           n=0
           while : ; do
             n=$((n+1))
@@ -96,16 +112,20 @@ jobs:
             fi
 
             NOW=$(date -u +%H%M)
-            if [ "$NOW" -ge "$UNTIL" ]; then
+            if [ "$NOW" -ge "$UNTIL" ] || [ "$(date -u +%s)" -ge "$DEADLINE" ]; then
               echo "종료 시각(${UNTIL} UTC) 도달 — ${n}회 갱신하고 마칩니다"
               break
             fi
             echo "다음 갱신까지 ${INTERVAL}초 대기 …"
+            REMAIN=$((DEADLINE - $(date -u +%s)))
+            if [ "$REMAIN" -le "$INTERVAL" ]; then
+              break
+            fi
             sleep "$INTERVAL"
           done
 
       - name: ARK 테마 변동분 커밋
-        if: always()
+        if: always() && steps.window.outputs.open == 'true'
         continue-on-error: true
         run: |
           git config user.name  "github-actions[bot]"

@@ -45,8 +45,8 @@
    const bw=Math.min(62,iw/rows.length*.48),zero=Y(0);
    rows.forEach((r,i)=>{const y=Math.min(zero,Y(r.value)),h=Math.max(1,Math.abs(zero-Y(r.value)));markup+='<rect x="'+(X(i)-bw/2)+'" y="'+y+'" width="'+bw+'" height="'+h+'" rx="6" fill="url(#'+id+'bar)"/>';});
   }else{
-   const d=rows.map((r,i)=>(i?'L':'M')+X(i).toFixed(2)+' '+Y(r.value).toFixed(2)).join(' ');
-   markup+='<path d="'+d+' L'+X(rows.length-1)+' '+(T+ih)+' L'+L+' '+(T+ih)+' Z" fill="url(#'+id+'fill)"/><path d="'+d+'" fill="none" stroke="url(#'+id+'line)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>';
+   const d=rows.map((r,i)=>((!i||(timed&&options.maxGapMs&&Number(r.time)-Number(rows[i-1].time)>options.maxGapMs))?'M':'L')+X(i).toFixed(2)+' '+Y(r.value).toFixed(2)).join(' ');
+   markup+=(options.maxGapMs?'':'<path d="'+d+' L'+X(rows.length-1)+' '+(T+ih)+' L'+L+' '+(T+ih)+' Z" fill="url(#'+id+'fill)"/>')+'<path d="'+d+'" fill="none" stroke="url(#'+id+'line)" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>';
   }
   const ticks=isBar?rows.map((_,i)=>i):[...new Set([0,Math.round((rows.length-1)*.25),Math.round((rows.length-1)*.5),Math.round((rows.length-1)*.75),rows.length-1])];
   ticks.forEach(i=>{markup+='<text x="'+X(i)+'" y="'+(H-9)+'" text-anchor="'+(!isBar&&i===0?'start':!isBar&&i===rows.length-1?'end':'middle')+'" fill="'+ink+'">'+esc(isBar&&W<480?(rows[i].shortLabel||rows[i].label||'').slice(0,3):(rows[i].shortLabel||rows[i].label||''))+'</text>';});

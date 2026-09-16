@@ -37,6 +37,7 @@ def main():
     os.makedirs(WEB, exist_ok=True)
     out = {
         "ts": d["ts"],
+        "timezone": d["timezone"],
         "market": "US",
         "unit": d["unit"],
         "themes": d["themes"],
