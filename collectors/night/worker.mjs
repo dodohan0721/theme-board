@@ -62,7 +62,10 @@ async function request(url, options) {
  return d;
 }
 async function auth(env) {
+ const identityBytes=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(env.KIS_APP_KEY+"\n"+env.KIS_APP_SECRET));
+ const identity=[...new Uint8Array(identityBytes)].map(x=>x.toString(16).padStart(2,"0")).join("");
  let a=await read(env,AUTH) || {}, changed=false;
+ if(a.identity!==identity){a={identity};changed=true;}
  if(!a.token || a.token_expire<Date.now()+600000) {
   const d=await request(KIS+"/oauth2/tokenP",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({grant_type:"client_credentials",appkey:env.KIS_APP_KEY,appsecret:env.KIS_APP_SECRET})});
   if(!d.access_token) throw new Error("rest_auth_failed");

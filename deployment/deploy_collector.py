@@ -4,6 +4,9 @@ CONFIG = "collectors/night/wrangler.toml"
 def run(args, **kwargs):
     subprocess.run(["npx","--yes","wrangler@4.131.2",*args],check=True,**kwargs)
 def main():
+    if not os.environ.get("CLOUDFLARE_API_TOKEN"):
+        print("Missing GitHub Secret: CLOUDFLARE_WORKERS_API_TOKEN",flush=True)
+        raise RuntimeError("Workers deployment credential is missing")
     run(["deploy","--config",CONFIG])
     probe = secrets.token_urlsafe(32)
     body = json.dumps({"KIS_APP_KEY":os.environ["KIS_APP_KEY"],"KIS_APP_SECRET":os.environ["KIS_APP_SECRET"],"PROBE_TOKEN":probe})
