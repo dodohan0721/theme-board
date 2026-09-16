@@ -443,7 +443,7 @@ function viewHome(){
   ${mktStrip()}
   ${age>20?`<div class="stale">⏱ 이 화면은 <b>${D.ts}</b> 기준 스냅샷입니다 (약 ${age}분 전). 실시간 시세가 아닙니다.</div>`:''}
   <details class="market-note"><summary>시장 집계 기준 · ${MKT==='us'?'NASDAQ / NYSE / AMEX':'KRX + NXT'}${dupN?` · 중복 테마 ${dupN}개 정리`:''}</summary><div class="note">${MKT==='us'
-    ? `미국 <b>나스닥·뉴욕·아멕스</b> 기준입니다. 시세는 <b>실시간(0분 지연)</b>이며 거래대금 단위는 <b>백만달러</b>입니다.${usHours()}
+    ? `미국 <b>나스닥·뉴욕·아멕스</b> 기준입니다. 시세는 <b>표시된 수집 시각 기준 스냅샷</b>이며 거래대금 단위는 <b>백만달러</b>입니다.${usHours()}
        조회된 <b>${D.scanned}종목</b>을 업종·테마별로 묶었습니다.`
     : `거래대금은 <b>KRX + NXT(대체거래소) 합산</b> 기준입니다.${afterHours()}
        사전의 <b>${D.universe}종목</b> 중 <b>${D.scanned}종목</b>을 조회해 테마별로 묶었습니다.`}
